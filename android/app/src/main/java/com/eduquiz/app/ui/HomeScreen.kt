@@ -33,7 +33,7 @@ fun HomeScreen(
             style = MaterialTheme.typography.bodyLarge
         )
         RootDestination.allDestinations
-            .filter { it != RootDestination.Home }
+            .filter { it != RootDestination.Home && it != RootDestination.Auth }
             .forEach { destination ->
                 Button(onClick = { onNavigate(destination) }) {
                     Text(text = destination.title)

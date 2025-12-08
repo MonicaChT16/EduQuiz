@@ -23,6 +23,12 @@ docs/        # Especificaciones y guías
 - Room, WorkManager y Firebase (Auth + Firestore + Google Sign-In)
 - Módulos: `app`, `core`, `data`, `domain`, `feature-*`
 
+### Verificacion manual Auth
+1. Instala y abre la app sin una sesion activa -> se debe mostrar la pantalla de Login con el botón “Continuar con Google”.
+2. Pulsa el botón, selecciona una cuenta Google válida y confirma que después del flujo la app entra directo al Home sin poder volver al Login mediante back.
+3. Abre Perfil > pulsa “Cerrar sesion” -> la app vuelve al Login y no permite volver al Home mediante back.
+4. Intenta iniciar sesión nuevamente para confirmar el ciclo completo login/logout.
+
 ## Firebase Functions
 1. Entra en `functions` y ejecuta `npm install` (ya inicializado pero necesario tras clonar).
 2. Ajusta `.firebaserc` con el ID real.

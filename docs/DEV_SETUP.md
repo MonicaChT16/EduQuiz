@@ -7,7 +7,7 @@
 - Firebase CLI (`npm install -g firebase-tools`)
 
 ## Android (`/android`)
-1. Copia tu `google-services.json` en `android/app/google-services.json`.
+1. Copia tu `google-services.json` en `android/app/google-services.json`. Se incluye el placeholder `google-services.json.placeholder`; renómbralo o reemplázalo con el archivo real descargado desde Firebase Console para habilitar los recursos generados (p. ej. `default_web_client_id`).
 2. Añade el archivo `firebase-config.json` si usas Config remoto.
 3. Crea un archivo `local.properties` en `/android` con la ruta de tu SDK:
    ```

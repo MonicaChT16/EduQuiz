@@ -1,43 +1,80 @@
 package com.eduquiz.app
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eduquiz.app.navigation.RootDestination
 import com.eduquiz.app.ui.HomeScreen
 import com.eduquiz.app.ui.theme.EduQuizTheme
+import com.eduquiz.feature.auth.model.AuthState
+import com.eduquiz.feature.auth.presentation.AuthViewModel
+import com.eduquiz.feature.auth.ui.LoginRoute
+import com.eduquiz.feature.profile.ProfileFeature
 
 @Composable
 fun EduQuizApp() {
     EduQuizTheme {
-        val navController = rememberNavController()
+        val authViewModel: AuthViewModel = hiltViewModel()
+        val authState by authViewModel.state.collectAsStateWithLifecycle()
+
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            NavHost(
-                navController = navController,
-                startDestination = RootDestination.Home.route
-            ) {
-                composable(RootDestination.Home.route) {
-                    HomeScreen(
-                        onNavigate = { destination ->
-                            if (destination != RootDestination.Home) {
-                                navController.navigate(destination.route)
-                            }
-                        }
-                    )
-                }
-                RootDestination.allDestinations.filter { it != RootDestination.Home }.forEach { destination ->
-                    composable(destination.route) {
-                        PlaceholderScreen(label = destination.title)
-                    }
-                }
+            when (authState) {
+                AuthState.Loading -> LoadingScreen()
+                is AuthState.Authenticated -> MainNavHost(
+                    modifier = Modifier.fillMaxSize(),
+                    onLogout = { authViewModel.logout() }
+                )
+                else -> LoginRoute(
+                    modifier = Modifier.fillMaxSize(),
+                    viewModel = authViewModel
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun MainNavHost(
+    modifier: Modifier = Modifier,
+    onLogout: () -> Unit
+) {
+    val navController = rememberNavController()
+    NavHost(
+        navController = navController,
+        startDestination = RootDestination.Home.route,
+        modifier = modifier
+    ) {
+        composable(RootDestination.Home.route) {
+            HomeScreen(
+                onNavigate = { destination ->
+                    if (destination != RootDestination.Home && destination != RootDestination.Auth) {
+                        navController.navigate(destination.route)
+                    }
+                }
+            )
+        }
+        composable(RootDestination.Profile.route) {
+            ProfileFeature(onLogoutClick = onLogout)
+        }
+        RootDestination.allDestinations
+            .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile) }
+            .forEach { destination ->
+                composable(destination.route) {
+                    PlaceholderScreen(label = destination.title)
+                }
+            }
     }
 }
 
@@ -47,4 +84,14 @@ private fun PlaceholderScreen(label: String) {
         text = "$label coming soon",
         style = MaterialTheme.typography.titleLarge
     )
+}
+
+@Composable
+private fun LoadingScreen() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
+    }
 }
