@@ -29,6 +29,12 @@ class ProfileRepositoryImpl @Inject constructor(
         profileDao.updateCoins(uid, delta, updatedAtLocal, syncState)
     }
 
+    override suspend fun addCoins(uid: String, delta: Int, reason: String, updatedAtLocal: Long, syncState: String) {
+        // Por ahora, addCoins es igual a updateCoins (la razón se puede usar para logging futuro)
+        // TODO: En el futuro, se puede crear una tabla de transacciones para rastrear el reason
+        profileDao.updateCoins(uid, delta, updatedAtLocal, syncState)
+    }
+
     override suspend fun updateSelectedCosmetic(
         uid: String,
         cosmeticId: String,

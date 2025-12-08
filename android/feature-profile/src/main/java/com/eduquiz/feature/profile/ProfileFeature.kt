@@ -38,6 +38,7 @@ fun ProfileFeature(
 ) {
     val authState by authViewModel.state.collectAsStateWithLifecycle()
     val attempts by profileViewModel.attempts.collectAsStateWithLifecycle()
+    val profile by profileViewModel.profile.collectAsStateWithLifecycle()
 
     val user = (authState as? com.eduquiz.feature.auth.model.AuthState.Authenticated)?.user
     
@@ -62,6 +63,60 @@ fun ProfileFeature(
                 style = MaterialTheme.typography.bodyLarge
             )
         }
+        
+        // Mostrar coins
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "EduCoins",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = "${profile?.coins ?: 0}",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        
+        // Mostrar cosmetic seleccionado
+        profile?.selectedCosmeticId?.let { cosmeticId ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Cosmético Equipado",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = cosmeticId,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+        
         Button(onClick = onLogoutClick) {
             Text(text = "Cerrar sesion")
         }

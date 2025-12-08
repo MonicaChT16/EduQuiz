@@ -10,6 +10,7 @@ import com.eduquiz.domain.exam.ExamStatus
 import com.eduquiz.feature.exam.ExamResult
 import com.eduquiz.domain.pack.Pack
 import com.eduquiz.domain.pack.PackRepository
+import com.eduquiz.domain.profile.ProfileRepository
 import com.eduquiz.domain.profile.SyncState
 import com.eduquiz.domain.sync.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,6 +31,7 @@ import java.util.UUID
 class ExamViewModel @Inject constructor(
     private val packRepository: PackRepository,
     private val examRepository: ExamRepository,
+    private val profileRepository: ProfileRepository,
     private val timeProvider: TimeProvider,
     private val syncRepository: SyncRepository,
 ) : ViewModel() {
@@ -351,6 +353,7 @@ class ExamViewModel @Inject constructor(
     private fun finishExam(status: String) {
         if (_state.value.stage == ExamStage.Finished) return
         val currentAttempt = attempt ?: return
+        val uid = userId ?: return
         timerJob?.cancel()
 
         viewModelScope.launch {
@@ -362,6 +365,11 @@ class ExamViewModel @Inject constructor(
                 finishedAtLocal = timeProvider.currentTimeMillis(),
                 status = status
             )
+            
+            // Calcular y otorgar EduCoins
+            if (status != ExamStatus.CANCELLED_CHEAT) {
+                calculateAndAwardCoins(uid, currentAttempt.attemptId)
+            }
             
             // Encolar sincronización inmediata
             syncRepository.enqueueSyncNow()
@@ -378,6 +386,39 @@ class ExamViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private suspend fun calculateAndAwardCoins(uid: String, attemptId: String) {
+        val answers = examRepository.getAnswersForAttempt(attemptId)
+        if (answers.isEmpty()) return
+
+        val updatedAtLocal = timeProvider.currentTimeMillis()
+        var totalCoins = 0
+
+        // 1. Base: coins por respuestas correctas (10 coins por correcta)
+        val correctAnswers = answers.count { it.isCorrect }
+        val baseCoins = correctAnswers * 10
+        if (baseCoins > 0) {
+            profileRepository.addCoins(uid, baseCoins, "correct_answer", updatedAtLocal, SyncState.PENDING)
+            totalCoins += baseCoins
+        }
+
+        // 2. Bonus por velocidad: respuestas < 60 segundos (5 coins extra por cada una)
+        val speedBonusThreshold = 60_000L // 60 segundos en ms
+        val fastAnswers = answers.count { it.isCorrect && it.timeSpentMs < speedBonusThreshold }
+        val speedBonus = fastAnswers * 5
+        if (speedBonus > 0) {
+            profileRepository.addCoins(uid, speedBonus, "speed_bonus", updatedAtLocal, SyncState.PENDING)
+            totalCoins += speedBonus
+        }
+
+        // 3. Hook para bonus de racha (se implementará en prompt 08)
+        // TODO: Calcular bonus de racha cuando se implemente DailyStreak
+        // val streakBonus = calculateStreakBonus(uid)
+        // if (streakBonus > 0) {
+        //     profileRepository.addCoins(uid, streakBonus, "streak_bonus", updatedAtLocal, SyncState.PENDING)
+        //     totalCoins += streakBonus
+        // }
     }
 
     fun loadResult(attemptId: String) {

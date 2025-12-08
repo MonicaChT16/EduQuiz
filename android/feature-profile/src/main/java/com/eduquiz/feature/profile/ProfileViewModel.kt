@@ -4,20 +4,22 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.eduquiz.domain.exam.ExamAttempt
 import com.eduquiz.domain.exam.ExamRepository
+import com.eduquiz.domain.profile.ProfileRepository
+import com.eduquiz.domain.profile.UserProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val examRepository: ExamRepository
+    private val examRepository: ExamRepository,
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
     private val _currentUid = MutableStateFlow<String?>(null)
@@ -35,6 +37,21 @@ class ProfileViewModel @Inject constructor(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
                 initialValue = emptyList()
+            )
+
+    val profile: StateFlow<UserProfile?> =
+        _currentUid.asStateFlow()
+            .flatMapLatest { uid ->
+                if (uid != null) {
+                    profileRepository.observeProfile(uid)
+                } else {
+                    flowOf(null)
+                }
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+                initialValue = null
             )
 
     fun initialize(uid: String) {

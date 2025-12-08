@@ -102,7 +102,7 @@ data class UserProfileEntity(
     val schoolId: String,
     val classroomId: String,
     val coins: Int,
-    val selectedCosmeticId: String,
+    val selectedCosmeticId: String?, // Nullable porque puede no tener cosmético equipado
     val updatedAtLocal: Long,
     val syncState: String,
 )
