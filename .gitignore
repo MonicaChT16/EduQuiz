@@ -13,3 +13,13 @@
 .externalNativeBuild
 .cxx
 local.properties
+android/.gradle/
+android/local.properties
+android/app/google-services.json
+functions/node_modules/
+functions/lib/
+web-admin/node_modules/
+web-admin/.next/
+web-admin/.env.local
+.firebase/
+.env
