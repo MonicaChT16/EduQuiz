@@ -3,6 +3,7 @@ package com.eduquiz.app.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -29,8 +30,11 @@ fun HomeScreen(
             style = MaterialTheme.typography.headlineMedium
         )
         Text(
-            text = "Explora las áreas principales de la plataforma.",
+            text = "Explora las areas principales de la plataforma.",
             style = MaterialTheme.typography.bodyLarge
+        )
+        ActivePackCard(
+            modifier = Modifier.fillMaxWidth()
         )
         RootDestination.allDestinations
             .filter { it != RootDestination.Home && it != RootDestination.Auth }

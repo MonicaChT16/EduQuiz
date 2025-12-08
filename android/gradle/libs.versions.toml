@@ -14,7 +14,9 @@ lifecycleRuntime = "2.8.4"
 activityCompose = "1.9.1"
 composeCompiler = "1.5.15"
 hiltNavigationCompose = "1.2.0"
-coroutinesPlayServices = "1.8.1"
+coroutines = "1.8.1"
+androidxTestCore = "1.6.1"
+robolectric = "4.12.2"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -41,4 +43,8 @@ firebase-firestore = { module = "com.google.firebase:firebase-firestore-ktx" }
 google-play-services-auth = { module = "com.google.android.gms:play-services-auth", version = "21.2.0" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutinesPlayServices" }
+coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+androidx-test-core = { module = "androidx.test:core-ktx", version.ref = "androidxTestCore" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }

@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins."android-library")
     alias(libs.plugins."kotlin-android")
     alias(libs.plugins."kotlin-kapt")
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -10,6 +11,10 @@ android {
 
     defaultConfig {
         minSdk = 24
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 
     compileOptions {
@@ -22,8 +27,15 @@ android {
     }
 }
 
+kapt {
+    arguments {
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
+}
+
 dependencies {
     implementation(project(":core"))
+    implementation(project(":domain"))
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
@@ -32,4 +44,13 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
     implementation(libs.coroutines.play.services)
+    implementation(libs.kotlinx.coroutines.core)
+
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+
+    testImplementation(kotlin("test"))
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
