@@ -27,7 +27,7 @@ import com.eduquiz.feature.profile.ProfileFeature
 import com.eduquiz.feature.pack.PackFeature
 
 @Composable
-fun EduQuizApp() {
+fun EduQuizNavHost() {
     EduQuizTheme {
         val authViewModel: AuthViewModel = hiltViewModel()
         val authState by authViewModel.state.collectAsStateWithLifecycle()
@@ -35,11 +35,14 @@ fun EduQuizApp() {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             when (authState) {
                 AuthState.Loading -> LoadingScreen()
-                is AuthState.Authenticated -> MainNavHost(
-                    authUser = authState.user,
-                    modifier = Modifier.fillMaxSize(),
-                    onLogout = { authViewModel.logout() }
-                )
+                is AuthState.Authenticated -> {
+                    val authUser = (authState as AuthState.Authenticated).user
+                    MainNavHost(
+                        authUser = authUser,
+                        modifier = Modifier.fillMaxSize(),
+                        onLogout = { authViewModel.logout() }
+                    )
+                }
                 else -> LoginRoute(
                     modifier = Modifier.fillMaxSize(),
                     viewModel = authViewModel

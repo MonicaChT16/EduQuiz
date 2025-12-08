@@ -1,18 +1,18 @@
 [versions]
 androidGradlePlugin = "8.6.0"
-kotlin = "1.9.24"
+kotlin = "2.1.0"
 composeBom = "2024.06.00"
 material3 = "1.2.1"
 hilt = "2.52"
-room = "2.6.1"
+room = "2.7.0-alpha10"
 work = "2.9.0"
-firebaseBom = "33.1.2"
-googleServices = "4.4.2"
+firebaseBom = "34.6.0"
+googleServices = "4.4.4"
 navigationCompose = "2.7.7"
 coreKtx = "1.13.1"
 lifecycleRuntime = "2.8.4"
 activityCompose = "1.9.1"
-composeCompiler = "1.5.15"
+composeCompiler = "1.5.16"
 hiltNavigationCompose = "1.2.0"
 coroutines = "1.8.1"
 androidxTestCore = "1.6.1"
@@ -38,8 +38,8 @@ androidx-compose-foundation = { module = "androidx.compose.foundation:foundation
 androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 androidx-hilt-work = { module = "androidx.hilt:hilt-work", version.ref = "hilt" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
-firebase-auth = { module = "com.google.firebase:firebase-auth-ktx" }
-firebase-firestore = { module = "com.google.firebase:firebase-firestore-ktx" }
+firebase-auth = { module = "com.google.firebase:firebase-auth" }
+firebase-firestore = { module = "com.google.firebase:firebase-firestore" }
 google-play-services-auth = { module = "com.google.android.gms:play-services-auth", version = "21.2.0" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
@@ -48,3 +48,12 @@ kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-c
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 androidx-test-core = { module = "androidx.test:core-ktx", version.ref = "androidxTestCore" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
+android-library = { id = "com.android.library", version.ref = "androidGradlePlugin" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-plugin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }

@@ -137,7 +137,7 @@ class FirestorePackRemoteDataSource @Inject constructor(
         return topLevel
     }
 
-    private suspend fun <T> fetchByIds(
+    private suspend fun <T : Any> fetchByIds(
         ids: List<String>,
         collection: String,
         mapper: (DocumentSnapshot) -> T?
@@ -155,6 +155,11 @@ class FirestorePackRemoteDataSource @Inject constructor(
             snapshots.mapNotNullTo(results, mapper)
         }
         return results
+    }
+
+    private fun chunkForWhereIn(ids: List<String>): List<List<String>> {
+        // Firestore whereIn supports max 10 items
+        return ids.chunked(10)
     }
 
     private fun DocumentSnapshot.toPackMeta(): PackMetaRemote? {

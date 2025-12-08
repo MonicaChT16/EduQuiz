@@ -297,9 +297,10 @@ private fun ExamHeader(
             )
         }
         LinearProgressIndicator(
-            progress = fraction,
+            progress = { fraction },
             modifier = Modifier.fillMaxWidth()
         )
+
     }
 }
 

@@ -1,7 +1,7 @@
 plugins {
-    alias(libs.plugins."android-library")
-    alias(libs.plugins."kotlin-android")
-    alias(libs.plugins."kotlin-kapt")
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.hilt)
 }
 
@@ -24,6 +24,10 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 }
 
