@@ -153,6 +153,7 @@ class PackViewModel @Inject constructor(
 
 @Composable
 fun PackFeature(
+    onStartExam: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: PackViewModel = hiltViewModel()
 ) {
@@ -161,6 +162,7 @@ fun PackFeature(
         state = state,
         onDownloadClick = viewModel::downloadCurrentPack,
         onRetryClick = viewModel::refreshCurrentPack,
+        onStartExam = onStartExam,
         modifier = modifier
     )
 }
@@ -170,6 +172,7 @@ fun PackScreen(
     state: PackUiState,
     onDownloadClick: () -> Unit,
     onRetryClick: () -> Unit,
+    onStartExam: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val busy = state.isDownloading || state.isLoading
@@ -238,6 +241,13 @@ fun PackScreen(
                 ) {
                     Text(text = "Refrescar")
                 }
+            }
+            Button(
+                onClick = onStartExam,
+                enabled = state.activePack != null && !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Iniciar simulacro con pack activo")
             }
             Spacer(modifier = Modifier.weight(1f))
         }
@@ -338,6 +348,7 @@ private fun PackScreenPreview() {
     PackScreen(
         state = state,
         onDownloadClick = {},
-        onRetryClick = {}
+        onRetryClick = {},
+        onStartExam = {}
     )
 }

@@ -18,9 +18,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eduquiz.app.navigation.RootDestination
 import com.eduquiz.app.ui.HomeScreen
 import com.eduquiz.app.ui.theme.EduQuizTheme
+import com.eduquiz.feature.auth.model.AuthUser
 import com.eduquiz.feature.auth.model.AuthState
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 import com.eduquiz.feature.auth.ui.LoginRoute
+import com.eduquiz.feature.exam.ExamFeature
 import com.eduquiz.feature.profile.ProfileFeature
 import com.eduquiz.feature.pack.PackFeature
 
@@ -34,6 +36,7 @@ fun EduQuizApp() {
             when (authState) {
                 AuthState.Loading -> LoadingScreen()
                 is AuthState.Authenticated -> MainNavHost(
+                    authUser = authState.user,
                     modifier = Modifier.fillMaxSize(),
                     onLogout = { authViewModel.logout() }
                 )
@@ -48,6 +51,7 @@ fun EduQuizApp() {
 
 @Composable
 private fun MainNavHost(
+    authUser: AuthUser,
     modifier: Modifier = Modifier,
     onLogout: () -> Unit
 ) {
@@ -70,10 +74,22 @@ private fun MainNavHost(
             ProfileFeature(onLogoutClick = onLogout)
         }
         composable(RootDestination.Pack.route) {
-            PackFeature(modifier = Modifier.fillMaxSize())
+            PackFeature(
+                modifier = Modifier.fillMaxSize(),
+                onStartExam = { navController.navigate(RootDestination.Exam.route) }
+            )
+        }
+        composable(RootDestination.Exam.route) {
+            ExamFeature(
+                uid = authUser.uid,
+                modifier = Modifier.fillMaxSize(),
+                onExit = {
+                    navController.popBackStack(RootDestination.Home.route, inclusive = false)
+                }
+            )
         }
         RootDestination.allDestinations
-            .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack) }
+            .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack, RootDestination.Exam) }
             .forEach { destination ->
                 composable(destination.route) {
                     PlaceholderScreen(label = destination.title)
