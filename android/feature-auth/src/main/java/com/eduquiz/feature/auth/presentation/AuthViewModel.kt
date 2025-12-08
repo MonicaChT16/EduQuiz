@@ -3,6 +3,7 @@ package com.eduquiz.feature.auth.presentation
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.eduquiz.domain.sync.SyncRepository
 import com.eduquiz.feature.auth.data.AuthRepository
 import com.eduquiz.feature.auth.data.AuthResult
 import com.eduquiz.feature.auth.model.AuthState
@@ -18,7 +19,8 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val syncRepository: SyncRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
@@ -53,7 +55,13 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = AuthState.Loading
             when (val result = authRepository.signInWithGoogleIntent(data)) {
-                is AuthResult.Success -> _state.value = AuthState.Authenticated(result.user)
+                is AuthResult.Success -> {
+                    _state.value = AuthState.Authenticated(result.user)
+                    // Programar sincronización periódica al iniciar sesión
+                    syncRepository.schedulePeriodicSync()
+                    // También encolar sincronización inmediata para sincronizar datos pendientes
+                    syncRepository.enqueueSyncNow()
+                }
                 is AuthResult.Failure -> _state.value = AuthState.Error(result.message)
             }
         }

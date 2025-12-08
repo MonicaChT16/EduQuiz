@@ -315,6 +315,18 @@ interface ProfileDao {
 
     @Query("SELECT * FROM daily_streak_entity WHERE uid = :uid LIMIT 1")
     fun observeDailyStreak(uid: String): Flow<DailyStreakEntity?>
+
+    @Query("SELECT * FROM user_profile_entity WHERE syncState = :syncState")
+    suspend fun getProfilesBySyncState(syncState: String): List<UserProfileEntity>
+
+    @Query(
+        """
+        UPDATE user_profile_entity 
+        SET syncState = :syncState 
+        WHERE uid = :uid
+        """
+    )
+    suspend fun updateProfileSyncState(uid: String, syncState: String)
 }
 
 @Dao
@@ -366,8 +378,29 @@ interface ExamDao {
     @Query("SELECT * FROM exam_attempt_entity WHERE uid = :uid ORDER BY startedAtLocal DESC")
     suspend fun getAttempts(uid: String): List<ExamAttemptEntity>
 
+    @Query("SELECT * FROM exam_attempt_entity WHERE attemptId = :attemptId LIMIT 1")
+    suspend fun getAttemptById(attemptId: String): ExamAttemptEntity?
+
+    @Query("SELECT * FROM exam_attempt_entity WHERE uid = :uid ORDER BY startedAtLocal DESC")
+    fun observeAttempts(uid: String): Flow<List<ExamAttemptEntity>>
+
     @Query("SELECT * FROM exam_answer_entity WHERE attemptId = :attemptId")
     suspend fun getAnswers(attemptId: String): List<ExamAnswerEntity>
+
+    @Query("SELECT correctOptionId FROM question_entity WHERE questionId = :questionId LIMIT 1")
+    suspend fun getCorrectOptionId(questionId: String): String?
+
+    @Query("SELECT * FROM exam_attempt_entity WHERE syncState = :syncState")
+    suspend fun getAttemptsBySyncState(syncState: String): List<ExamAttemptEntity>
+
+    @Query(
+        """
+        UPDATE exam_attempt_entity 
+        SET syncState = :syncState 
+        WHERE attemptId = :attemptId
+        """
+    )
+    suspend fun updateSyncState(attemptId: String, syncState: String)
 }
 
 @Database(

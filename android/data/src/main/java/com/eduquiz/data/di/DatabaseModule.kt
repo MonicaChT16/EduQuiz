@@ -29,7 +29,7 @@ object DatabaseModule {
             AppDatabase.NAME
         )
             .addMigrations(*AppDatabase.MIGRATIONS)
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
 

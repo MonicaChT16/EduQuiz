@@ -42,3 +42,12 @@ val ExamUiState.answeredCount: Int
 
 val ExamUiState.areOptionsLocked: Boolean
     get() = lockRemainingMs > 0
+
+data class ExamResult(
+    val attemptId: String,
+    val status: String,
+    val scoreRaw: Int,
+    val answeredCount: Int,
+    val finishedAtLocal: Long?,
+    val totalQuestions: Int
+)
