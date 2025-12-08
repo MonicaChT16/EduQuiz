@@ -1,9 +1,17 @@
 package com.eduquiz.data.repository
 
+import androidx.room.withTransaction
+import com.eduquiz.data.db.AppDatabase
 import com.eduquiz.data.db.ContentDao
 import com.eduquiz.data.db.PackDao
+import com.eduquiz.data.remote.OptionRemote
+import com.eduquiz.data.remote.PackMetaRemote
+import com.eduquiz.data.remote.PackRemoteDataSource
+import com.eduquiz.data.remote.QuestionRemote
+import com.eduquiz.data.remote.TextRemote
 import com.eduquiz.domain.pack.Option
 import com.eduquiz.domain.pack.Pack
+import com.eduquiz.domain.pack.PackMeta
 import com.eduquiz.domain.pack.PackRepository
 import com.eduquiz.domain.pack.PackStatus
 import com.eduquiz.domain.pack.Question
@@ -15,7 +23,62 @@ import kotlinx.coroutines.flow.map
 class PackRepositoryImpl @Inject constructor(
     private val packDao: PackDao,
     private val contentDao: ContentDao,
+    private val database: AppDatabase,
+    private val remoteDataSource: PackRemoteDataSource,
 ) : PackRepository {
+
+    override suspend fun fetchCurrentPackMeta(): PackMeta? {
+        return remoteDataSource.fetchCurrentPackMeta()?.toPackMeta()
+    }
+
+    override suspend fun downloadPack(packId: String): Pack {
+        val existing = packDao.findById(packId)?.toDomain()
+        if (existing != null) {
+            database.withTransaction {
+                packDao.markAsActive(packId)
+                packDao.updateStatusForOthers(
+                    packId = packId,
+                    currentStatus = PackStatus.DOWNLOADED,
+                    newStatus = PackStatus.ARCHIVED
+                )
+            }
+            return existing.copy(status = PackStatus.ACTIVE)
+        }
+
+        val bundle = remoteDataSource.fetchPack(packId)
+            ?: error("El pack $packId no existe en Firestore.")
+
+        val now = System.currentTimeMillis()
+        val pack = bundle.meta.toPack(downloadedAt = now)
+        val texts = bundle.texts.map { it.toDomain() }
+        val questions = bundle.questions.map { it.toDomain() }
+        val options = bundle.questions.flatMap { question ->
+            question.options.map { it.toDomain(question.questionId) }
+        }
+
+        database.withTransaction {
+            packDao.insert(pack.toEntity())
+            if (texts.isNotEmpty()) {
+                contentDao.insertTexts(texts.map { it.toEntity() })
+            }
+            if (questions.isNotEmpty()) {
+                contentDao.insertQuestions(questions.map { it.toEntity() })
+            }
+            if (options.isNotEmpty()) {
+                contentDao.insertOptions(options.map { it.toEntity() })
+            }
+            packDao.markAsActive(pack.packId)
+            packDao.updateStatusForOthers(
+                packId = pack.packId,
+                currentStatus = PackStatus.DOWNLOADED,
+                newStatus = PackStatus.ARCHIVED
+            )
+        }
+
+        return pack.copy(status = PackStatus.ACTIVE)
+    }
+
+    override suspend fun getPackById(packId: String): Pack? = packDao.findById(packId)?.toDomain()
 
     override suspend fun insertPack(pack: Pack) {
         packDao.insert(pack.toEntity())
@@ -61,4 +124,56 @@ class PackRepositoryImpl @Inject constructor(
 
     override suspend fun getOptionsForQuestion(questionId: String): List<Option> =
         contentDao.getOptionsByQuestion(questionId).map { it.toDomain() }
+}
+
+private fun PackMetaRemote.toPack(downloadedAt: Long): Pack {
+    return Pack(
+        packId = packId,
+        weekLabel = weekLabel,
+        status = PackStatus.DOWNLOADED,
+        publishedAt = publishedAt,
+        downloadedAt = downloadedAt
+    )
+}
+
+private fun PackMetaRemote.toPackMeta(): PackMeta {
+    return PackMeta(
+        packId = packId,
+        weekLabel = weekLabel,
+        status = status,
+        publishedAt = publishedAt,
+        textIds = textIds,
+        questionIds = questionIds
+    )
+}
+
+private fun TextRemote.toDomain(): TextContent {
+    return TextContent(
+        textId = textId,
+        packId = packId,
+        title = title,
+        body = body,
+        subject = subject
+    )
+}
+
+private fun QuestionRemote.toDomain(): Question {
+    return Question(
+        questionId = questionId,
+        packId = packId,
+        textId = textId,
+        prompt = prompt,
+        correctOptionId = correctOptionId,
+        difficulty = difficulty,
+        explanationText = explanationText,
+        explanationStatus = explanationStatus
+    )
+}
+
+private fun OptionRemote.toDomain(questionId: String): Option {
+    return Option(
+        questionId = questionId,
+        optionId = optionId,
+        text = text
+    )
 }

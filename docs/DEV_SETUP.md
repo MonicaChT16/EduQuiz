@@ -45,3 +45,8 @@
 ## Buenas prácticas
 - Ejecuta `npm run lint` en Functions y Web Admin antes de hacer commit.
 - Usa `./gradlew lint` y `./gradlew ktlint` (cuando se agregue) para Android.
+
+## Packs semanales (Android)
+- Estrategia para descubrir el pack actual: se consulta la coleccion `packs` en Firestore filtrando `status = "PUBLISHED"`, ordenada por `publishedAt` descendente y `limit 1` (Opcion 2 del spec). El resultado entrega el `packId` a descargar junto con sus `textIds` y `questionIds`.
+- La app descarga el pack completo (pack + textos + preguntas + opciones) y lo almacena en Room en una transaccion atomica. El pack recien descargado se marca como `ACTIVE` y los anteriores quedan `ARCHIVED`.
+

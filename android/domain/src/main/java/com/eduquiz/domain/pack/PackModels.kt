@@ -8,6 +8,15 @@ data class Pack(
     val downloadedAt: Long,
 )
 
+data class PackMeta(
+    val packId: String,
+    val weekLabel: String,
+    val status: String,
+    val publishedAt: Long,
+    val textIds: List<String>,
+    val questionIds: List<String>,
+)
+
 data class TextContent(
     val textId: String,
     val packId: String,

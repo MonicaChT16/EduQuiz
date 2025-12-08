@@ -15,18 +15,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import com.eduquiz.domain.pack.Pack
 import com.eduquiz.domain.pack.PackRepository
-import com.eduquiz.domain.pack.PackStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 @HiltViewModel
 class ActivePackViewModel @Inject constructor(
@@ -40,23 +37,6 @@ class ActivePackViewModel @Inject constructor(
             initialValue = null
         )
 
-    init {
-        viewModelScope.launch {
-            val current = packRepository.observeActivePack().first()
-            if (current == null) {
-                val now = System.currentTimeMillis()
-                val seedPack = Pack(
-                    packId = "seed-pack",
-                    weekLabel = "Pack de la Semana",
-                    status = PackStatus.DOWNLOADED,
-                    publishedAt = now,
-                    downloadedAt = now
-                )
-                packRepository.insertPack(seedPack)
-                packRepository.setActivePack(seedPack.packId)
-            }
-        }
-    }
 }
 
 @Composable

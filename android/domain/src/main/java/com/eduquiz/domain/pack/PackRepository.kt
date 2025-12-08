@@ -3,6 +3,10 @@ package com.eduquiz.domain.pack
 import kotlinx.coroutines.flow.Flow
 
 interface PackRepository {
+    suspend fun fetchCurrentPackMeta(): PackMeta?
+    suspend fun downloadPack(packId: String): Pack
+    suspend fun getPackById(packId: String): Pack?
+
     suspend fun insertPack(pack: Pack)
     suspend fun insertTexts(texts: List<TextContent>)
     suspend fun insertQuestions(questions: List<Question>)

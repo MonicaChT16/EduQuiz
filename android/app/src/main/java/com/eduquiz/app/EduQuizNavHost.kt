@@ -22,6 +22,7 @@ import com.eduquiz.feature.auth.model.AuthState
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 import com.eduquiz.feature.auth.ui.LoginRoute
 import com.eduquiz.feature.profile.ProfileFeature
+import com.eduquiz.feature.pack.PackFeature
 
 @Composable
 fun EduQuizApp() {
@@ -68,8 +69,11 @@ private fun MainNavHost(
         composable(RootDestination.Profile.route) {
             ProfileFeature(onLogoutClick = onLogout)
         }
+        composable(RootDestination.Pack.route) {
+            PackFeature(modifier = Modifier.fillMaxSize())
+        }
         RootDestination.allDestinations
-            .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile) }
+            .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack) }
             .forEach { destination ->
                 composable(destination.route) {
                     PlaceholderScreen(label = destination.title)

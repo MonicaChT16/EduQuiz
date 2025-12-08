@@ -232,11 +232,23 @@ interface PackDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(packs: List<PackEntity>)
 
+    @Query("SELECT * FROM pack_entity WHERE packId = :packId LIMIT 1")
+    suspend fun findById(packId: String): PackEntity?
+
     @Query("UPDATE pack_entity SET status = :status WHERE packId = :packId")
     suspend fun updateStatus(packId: String, status: String)
 
     @Query("UPDATE pack_entity SET status = :newStatus WHERE status = :currentStatus")
     suspend fun updateStatusForCurrentStatus(currentStatus: String, newStatus: String)
+
+    @Query(
+        """
+        UPDATE pack_entity 
+        SET status = :newStatus 
+        WHERE packId != :packId AND status = :currentStatus
+        """
+    )
+    suspend fun updateStatusForOthers(packId: String, currentStatus: String, newStatus: String)
 
     @Transaction
     suspend fun markAsActive(packId: String) {
