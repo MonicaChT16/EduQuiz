@@ -30,6 +30,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eduquiz.app.navigation.RootDestination
 import com.eduquiz.app.ui.HomeScreen
+import com.eduquiz.app.ui.NotificationsScreen
 import com.eduquiz.app.ui.SettingsScreen
 import com.eduquiz.app.ui.theme.EduQuizTheme
 import com.eduquiz.feature.auth.model.AuthUser
@@ -84,7 +85,7 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            if (currentRoute != RootDestination.Auth.route && currentRoute != RootDestination.Pack.route && currentRoute != RootDestination.Exam.route) {
+            if (currentRoute != RootDestination.Auth.route && currentRoute != RootDestination.Pack.route && currentRoute != RootDestination.Exam.route && currentRoute != RootDestination.Notifications.route) {
                 BottomAppBar {
                     bottomNavItems.forEach { item ->
                         NavigationBarItem(
@@ -152,8 +153,13 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
             composable(RootDestination.Settings.route) {
                 SettingsScreen()
             }
+            composable(RootDestination.Notifications.route) {
+                NotificationsScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
             RootDestination.allDestinations
-                .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack, RootDestination.Exam, RootDestination.Store, RootDestination.Ranking, RootDestination.Settings) }
+                .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack, RootDestination.Exam, RootDestination.Store, RootDestination.Ranking, RootDestination.Settings, RootDestination.Notifications) }
                 .forEach { destination ->
                     composable(destination.route) {
                         PlaceholderScreen(label = destination.title)
