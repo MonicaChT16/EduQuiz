@@ -33,13 +33,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import android.os.Build
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.ImageLoader
+import coil.compose.AsyncImage // Importación de Coil
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import com.eduquiz.app.R // Importación para acceder a los recursos
 import com.eduquiz.app.navigation.RootDestination
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 import com.eduquiz.feature.auth.model.AuthState
@@ -50,7 +57,17 @@ fun HomeScreen(
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.state.collectAsStateWithLifecycle()
-    
+    val context = LocalContext.current
+    val imageLoader = ImageLoader.Builder(context)
+        .components {
+            if (Build.VERSION.SDK_INT >= 28) {
+                add(ImageDecoderDecoder.Factory())
+            } else {
+                add(GifDecoder.Factory())
+            }
+        }
+        .build()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -107,30 +124,16 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Placeholder para el GIF del robot - será reemplazado con el GIF real
-                Surface(
+                // GIF del robot
+                AsyncImage(
+                    model = R.drawable.robot,
+                    contentDescription = "Robot PISA animado",
+                    imageLoader = imageLoader, // Usar el ImageLoader personalizado
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(280.dp)
-                        .clip(RoundedCornerShape(24.dp)),
-                    color = Color.White,
-                    shadowElevation = 8.dp
-                ) {
-                    // Aquí irá el GIF del robot - por ahora mostramos un placeholder
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0xFFF0F0F0)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Robot PISA",
-                            modifier = Modifier.size(120.dp),
-                            tint = Color.Gray
-                        )
-                    }
-                }
+                        .clip(RoundedCornerShape(24.dp))
+                )
 
                 // Botón Tienda - fijo en la esquina superior derecha
                 Button(
