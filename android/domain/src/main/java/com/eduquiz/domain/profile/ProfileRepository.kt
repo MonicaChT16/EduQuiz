@@ -11,7 +11,7 @@ interface ProfileRepository {
      * @param reason Razón por la que se otorgan los coins (ej: "correct_answer", "speed_bonus", "streak_bonus")
      */
     suspend fun addCoins(uid: String, delta: Int, reason: String, updatedAtLocal: Long, syncState: String)
-    suspend fun updateSelectedCosmetic(uid: String, cosmeticId: String, updatedAtLocal: Long, syncState: String)
+    suspend fun updateSelectedCosmetic(uid: String, cosmeticId: String?, updatedAtLocal: Long, syncState: String)
 
     suspend fun saveDailyStreak(streak: DailyStreak)
     fun observeDailyStreak(uid: String): Flow<DailyStreak?>

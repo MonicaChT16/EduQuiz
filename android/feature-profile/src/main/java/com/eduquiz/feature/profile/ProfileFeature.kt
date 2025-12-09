@@ -24,6 +24,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eduquiz.domain.exam.ExamAttempt
 import com.eduquiz.domain.exam.ExamStatus
+import com.eduquiz.domain.profile.Achievement
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -39,12 +40,15 @@ fun ProfileFeature(
     val authState by authViewModel.state.collectAsStateWithLifecycle()
     val attempts by profileViewModel.attempts.collectAsStateWithLifecycle()
     val profile by profileViewModel.profile.collectAsStateWithLifecycle()
+    val achievements by profileViewModel.achievements.collectAsStateWithLifecycle()
 
     val user = (authState as? com.eduquiz.feature.auth.model.AuthState.Authenticated)?.user
     
     // Inicializar ViewModel con el UID del usuario
     LaunchedEffect(user?.uid) {
-        user?.uid?.let { profileViewModel.initialize(it) }
+        user?.uid?.let { 
+            profileViewModel.initialize(it)
+        }
     }
 
     Column(
@@ -121,6 +125,25 @@ fun ProfileFeature(
             Text(text = "Cerrar sesion")
         }
         
+        // Sección de logros
+        Text(
+            text = "Logros",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(top = 16.dp)
+        )
+        
+        if (achievements.isEmpty()) {
+            Text(
+                text = "No hay logros desbloqueados.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            achievements.forEach { achievement ->
+                AchievementCard(achievement = achievement)
+            }
+        }
+        
         Text(
             text = "Historial de intentos",
             style = MaterialTheme.typography.titleLarge,
@@ -135,7 +158,8 @@ fun ProfileFeature(
             )
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
             ) {
                 items(attempts) { attempt ->
                     AttemptCard(attempt = attempt)
@@ -218,3 +242,62 @@ private fun getStatusColor(status: String): androidx.compose.ui.graphics.Color {
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 }
+
+@Composable
+private fun AchievementCard(achievement: Achievement) {
+    val achievementInfo = getAchievementInfo(achievement.achievementId)
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = achievementInfo.name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = achievementInfo.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Desbloqueado: ${formatDate(achievement.unlockedAt)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun getAchievementInfo(achievementId: String): AchievementInfo {
+    return when (achievementId) {
+        "first_exam" -> AchievementInfo(
+            name = "Primer Simulacro",
+            description = "Completa tu primer simulacro"
+        )
+        "streak_3_days" -> AchievementInfo(
+            name = "3 Días de Racha",
+            description = "Entra a la app 3 días seguidos"
+        )
+        "correct_answers_10" -> AchievementInfo(
+            name = "10 Respuestas Correctas",
+            description = "Acumula 10 respuestas correctas"
+        )
+        else -> AchievementInfo(
+            name = achievementId,
+            description = "Logro desbloqueado"
+        )
+    }
+}
+
+private data class AchievementInfo(
+    val name: String,
+    val description: String
+)

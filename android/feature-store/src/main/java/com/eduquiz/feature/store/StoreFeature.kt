@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.eduquiz.domain.store.Cosmetic
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 
 @Composable
@@ -120,7 +121,7 @@ fun StoreFeature(
 
 @Composable
 private fun CosmeticCard(
-    cosmetic: com.eduquiz.domain.store.Cosmetic,
+    cosmetic: Cosmetic,
     isPurchased: Boolean,
     isEquipped: Boolean,
     canAfford: Boolean,

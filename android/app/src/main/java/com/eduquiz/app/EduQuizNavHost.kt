@@ -25,6 +25,7 @@ import com.eduquiz.feature.auth.ui.LoginRoute
 import com.eduquiz.feature.exam.ExamFeature
 import com.eduquiz.feature.profile.ProfileFeature
 import com.eduquiz.feature.pack.PackFeature
+import com.eduquiz.feature.store.StoreFeature
 
 @Composable
 fun EduQuizNavHost() {
@@ -91,8 +92,13 @@ private fun MainNavHost(
                 }
             )
         }
+        composable(RootDestination.Store.route) {
+            StoreFeature(
+                modifier = Modifier.fillMaxSize()
+            )
+        }
         RootDestination.allDestinations
-            .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack, RootDestination.Exam) }
+            .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack, RootDestination.Exam, RootDestination.Store) }
             .forEach { destination ->
                 composable(destination.route) {
                     PlaceholderScreen(label = destination.title)

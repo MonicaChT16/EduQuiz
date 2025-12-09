@@ -308,7 +308,7 @@ interface ProfileDao {
         WHERE uid = :uid
         """
     )
-    suspend fun updateSelectedCosmetic(uid: String, cosmeticId: String, updatedAtLocal: Long, syncState: String)
+    suspend fun updateSelectedCosmetic(uid: String, cosmeticId: String?, updatedAtLocal: Long, syncState: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDailyStreak(entity: DailyStreakEntity)

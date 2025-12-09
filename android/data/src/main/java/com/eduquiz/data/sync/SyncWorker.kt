@@ -2,15 +2,14 @@ package com.eduquiz.data.sync
 
 import android.content.Context
 import android.util.Log
-import androidx.work.Constraints
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
-import androidx.work.NetworkType
 import androidx.work.WorkerParameters
 import com.eduquiz.data.db.AppDatabase
 import com.eduquiz.data.remote.FirestoreSyncService
 import com.eduquiz.domain.profile.SyncState
-import javax.inject.Inject
-import javax.inject.Provider
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 
 /**
  * Worker que sincroniza datos pendientes con Firestore.
@@ -21,16 +20,17 @@ import javax.inject.Provider
  * - Sincroniza perfil PENDING
  * - Marca SYNCED si ok, FAILED si no
  */
-class SyncWorker(
-    context: Context,
-    params: WorkerParameters,
+@HiltWorker
+class SyncWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted params: WorkerParameters,
     private val database: AppDatabase,
     private val syncService: FirestoreSyncService
 ) : CoroutineWorker(context, params) {
 
     companion object {
         private const val TAG = "SyncWorker"
-        const val WORK_NAME = "sync_work"
+        const val WORK_NAME = "com.eduquiz.data.sync.SyncWorker"
     }
 
     override suspend fun doWork(): Result {
@@ -102,29 +102,5 @@ class SyncWorker(
         }
     }
 
-    /**
-     * Factory para crear SyncWorker con inyección de dependencias.
-     */
-    class Factory @Inject constructor(
-        private val databaseProvider: Provider<AppDatabase>,
-        private val syncServiceProvider: Provider<FirestoreSyncService>
-    ) : androidx.work.WorkerFactory() {
-        override fun createWorker(
-            appContext: Context,
-            workerClassName: String,
-            workerParameters: WorkerParameters
-        ): androidx.work.ListenableWorker? {
-            return if (workerClassName == SyncWorker::class.java.name) {
-                SyncWorker(
-                    appContext,
-                    workerParameters,
-                    databaseProvider.get(),
-                    syncServiceProvider.get()
-                )
-            } else {
-                null
-            }
-        }
-    }
 }
 

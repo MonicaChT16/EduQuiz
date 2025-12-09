@@ -73,7 +73,6 @@ class StoreRepositoryImpl @Inject constructor(
         }
 
         // 5. Descontar coins y agregar al inventario
-        val newCoins = profile.coins - cosmetic.cost
         val updatedAtLocal = System.currentTimeMillis()
 
         // Actualizar coins (delta negativo)

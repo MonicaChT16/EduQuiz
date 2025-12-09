@@ -8,6 +8,8 @@ import com.eduquiz.domain.exam.ExamOrigin
 import com.eduquiz.domain.exam.ExamRepository
 import com.eduquiz.domain.exam.ExamStatus
 import com.eduquiz.feature.exam.ExamResult
+import com.eduquiz.domain.achievements.AchievementEngine
+import com.eduquiz.domain.achievements.AchievementEvent
 import com.eduquiz.domain.pack.Pack
 import com.eduquiz.domain.pack.PackRepository
 import com.eduquiz.domain.profile.ProfileRepository
@@ -32,6 +34,7 @@ class ExamViewModel @Inject constructor(
     private val packRepository: PackRepository,
     private val examRepository: ExamRepository,
     private val profileRepository: ProfileRepository,
+    private val achievementEngine: AchievementEngine,
     private val timeProvider: TimeProvider,
     private val syncRepository: SyncRepository,
 ) : ViewModel() {
@@ -369,6 +372,12 @@ class ExamViewModel @Inject constructor(
             // Calcular y otorgar EduCoins
             if (status != ExamStatus.CANCELLED_CHEAT) {
                 calculateAndAwardCoins(uid, currentAttempt.attemptId)
+                
+                // Evaluar logros relacionados con completar examen
+                achievementEngine.evaluateAndUnlock(
+                    uid = uid,
+                    event = AchievementEvent.ExamCompleted
+                )
             }
             
             // Encolar sincronización inmediata
@@ -412,13 +421,8 @@ class ExamViewModel @Inject constructor(
             totalCoins += speedBonus
         }
 
-        // 3. Hook para bonus de racha (se implementará en prompt 08)
-        // TODO: Calcular bonus de racha cuando se implemente DailyStreak
-        // val streakBonus = calculateStreakBonus(uid)
-        // if (streakBonus > 0) {
-        //     profileRepository.addCoins(uid, streakBonus, "streak_bonus", updatedAtLocal, SyncState.PENDING)
-        //     totalCoins += streakBonus
-        // }
+        // 3. Bonus de racha se otorga automáticamente en StreakService cuando se alcanza 3 días
+        // El bonus se otorga al iniciar sesión, no al completar examen
     }
 
     fun loadResult(attemptId: String) {
