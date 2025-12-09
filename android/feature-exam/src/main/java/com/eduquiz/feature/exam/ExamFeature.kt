@@ -61,7 +61,8 @@ fun ExamFeature(
         ExamStage.Start -> ExamStartScreen(
             state = state,
             onStart = viewModel::startExam,
-            modifier = modifier
+            modifier = modifier,
+            viewModel = viewModel
         )
         ExamStage.InProgress -> {
             SecureFlagEffect()
@@ -89,7 +90,8 @@ fun ExamFeature(
 private fun ExamStartScreen(
     state: ExamUiState,
     onStart: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: ExamViewModel = hiltViewModel()
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
         Column(
@@ -104,6 +106,8 @@ private fun ExamStartScreen(
                 text = "10 preguntas, 20 minutos. Las capturas se bloquearán y salir de la app dos veces anula el intento.",
                 style = MaterialTheme.typography.bodyMedium
             )
+            
+            // Card del Pack Activo
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -125,28 +129,91 @@ private fun ExamStartScreen(
                         text = "Preguntas: ${state.totalQuestions.takeIf { it > 0 } ?: "No disponibles"}",
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    if (state.errorMessage != null) {
+                }
+            }
+
+            // Card del Pack Disponible (si no hay pack activo)
+            if (state.pack == null && state.availablePack != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text(
-                            text = state.errorMessage,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium
+                            text = "Pack disponible: ${state.availablePack.weekLabel}",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "ID: ${state.availablePack.packId}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                     }
                 }
             }
-            Button(
-                onClick = onStart,
-                enabled = state.pack != null && state.totalQuestions > 0 && !state.isBusy
-            ) {
-                if (state.isBusy) {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .size(18.dp),
-                        strokeWidth = 2.dp
-                    )
+
+            // Mensaje de error
+            if (state.errorMessage != null) {
+                Text(
+                    text = state.errorMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            // Indicador de carga
+            if (state.isLoadingPack || state.isDownloading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+
+            // Botones de acción
+            if (state.pack == null) {
+                // Si no hay pack activo, mostrar botones de descarga
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.downloadPack() },
+                        enabled = state.availablePack != null && !state.isDownloading && !state.isLoadingPack,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (state.isDownloading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        }
+                        Text(text = "Descargar Pack")
+                    }
+                    TextButton(
+                        onClick = { viewModel.refreshAvailablePack() },
+                        enabled = !state.isDownloading && !state.isLoadingPack
+                    ) {
+                        Text(text = "Refrescar")
+                    }
                 }
-                Text(text = "Iniciar intento")
+            } else {
+                // Si hay pack activo, mostrar botón de iniciar
+                Button(
+                    onClick = onStart,
+                    enabled = state.pack != null && state.totalQuestions > 0 && !state.isBusy
+                ) {
+                    if (state.isBusy) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                    Text(text = "Iniciar intento")
+                }
             }
         }
     }
