@@ -21,7 +21,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -94,13 +93,10 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
                             selected = currentRoute == item.route,
                             onClick = {
                                 navController.navigate(item.route) {
-                                    // Evita múltiples copias de la misma pantalla en la pila
                                     popUpTo(navController.graph.startDestinationId) {
                                         saveState = true
                                     }
-                                    // Evita múltiples copias de la misma pantalla cuando se selecciona el mismo elemento
                                     launchSingleTop = true
-                                    // Restaura el estado cuando se vuelve a seleccionar el elemento
                                     restoreState = true
                                 }
                             }
@@ -142,13 +138,18 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
                     }
                 )
             }
+            // MERGE: Usamos StoreFeature con modifier explícito para consistencia
             composable(RootDestination.Store.route) {
                 StoreFeature(
                     modifier = Modifier.fillMaxSize()
                 )
             }
+            // MERGE: Usamos la versión con 'uid' (de monica) dentro de la estructura nueva
             composable(RootDestination.Ranking.route) {
-                RankingFeature()
+                RankingFeature(
+                    uid = authUser.uid,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
             composable(RootDestination.Settings.route) {
                 SettingsScreen()
@@ -158,6 +159,7 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
+            // MERGE: Lista de exclusión actualizada para incluir Settings y Notifications
             RootDestination.allDestinations
                 .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack, RootDestination.Exam, RootDestination.Store, RootDestination.Ranking, RootDestination.Settings, RootDestination.Notifications) }
                 .forEach { destination ->
