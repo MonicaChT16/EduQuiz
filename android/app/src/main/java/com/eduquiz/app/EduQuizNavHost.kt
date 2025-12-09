@@ -25,6 +25,7 @@ import com.eduquiz.feature.auth.ui.LoginRoute
 import com.eduquiz.feature.exam.ExamFeature
 import com.eduquiz.feature.profile.ProfileFeature
 import com.eduquiz.feature.pack.PackFeature
+import com.eduquiz.feature.ranking.RankingFeature
 import com.eduquiz.feature.store.StoreFeature
 
 @Composable
@@ -97,8 +98,14 @@ private fun MainNavHost(
                 modifier = Modifier.fillMaxSize()
             )
         }
+        composable(RootDestination.Ranking.route) {
+            RankingFeature(
+                uid = authUser.uid,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
         RootDestination.allDestinations
-            .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack, RootDestination.Exam, RootDestination.Store) }
+            .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack, RootDestination.Exam, RootDestination.Store, RootDestination.Ranking) }
             .forEach { destination ->
                 composable(destination.route) {
                     PlaceholderScreen(label = destination.title)

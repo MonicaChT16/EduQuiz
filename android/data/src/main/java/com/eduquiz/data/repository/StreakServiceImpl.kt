@@ -72,11 +72,19 @@ class StreakServiceImpl @Inject constructor(
             // Si alcanzó 3 días, otorgar bonus
             if (updatedStreak.currentStreak == STREAK_BONUS_THRESHOLD && existingStreak?.currentStreak != STREAK_BONUS_THRESHOLD) {
                 try {
+                    val updatedAtLocal = System.currentTimeMillis()
                     profileRepository.addCoins(
                         uid = uid,
                         delta = STREAK_BONUS_COINS,
                         reason = "streak_bonus",
-                        updatedAtLocal = System.currentTimeMillis(),
+                        updatedAtLocal = updatedAtLocal,
+                        syncState = SyncState.PENDING
+                    )
+                    // XP se gana igual que coins
+                    profileRepository.addXp(
+                        uid = uid,
+                        delta = STREAK_BONUS_COINS.toLong(),
+                        updatedAtLocal = updatedAtLocal,
                         syncState = SyncState.PENDING
                     )
                 } catch (e: Exception) {

@@ -7,6 +7,7 @@ data class UserProfile(
     val schoolId: String,
     val classroomId: String,
     val coins: Int,
+    val xp: Long = 0L, // Puntos de experiencia (acumulativo, nunca disminuye)
     val selectedCosmeticId: String?, // Nullable porque puede no tener cosmético equipado
     val updatedAtLocal: Long,
     val syncState: String,

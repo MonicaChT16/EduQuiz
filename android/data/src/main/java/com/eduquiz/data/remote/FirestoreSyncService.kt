@@ -120,6 +120,7 @@ class FirestoreSyncService @Inject constructor(
                     "schoolId" to profile.schoolId,
                     "classroomId" to profile.classroomId,
                     "coins" to profile.coins,
+                    "xp" to profile.xp,
                     "selectedCosmeticId" to profile.selectedCosmeticId,
                     "updatedAtLocal" to profile.updatedAtLocal,
                     "syncState" to SyncState.SYNCED,

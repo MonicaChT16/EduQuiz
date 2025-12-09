@@ -49,6 +49,7 @@ dependencies {
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.storage)
     implementation(libs.coroutines.play.services)
     implementation(libs.kotlinx.coroutines.core)
 

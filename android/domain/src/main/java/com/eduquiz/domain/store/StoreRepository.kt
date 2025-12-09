@@ -27,3 +27,4 @@ interface StoreRepository {
     suspend fun isCosmeticPurchased(uid: String, cosmeticId: String): Boolean
 }
 
+

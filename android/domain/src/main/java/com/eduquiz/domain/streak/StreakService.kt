@@ -17,3 +17,4 @@ interface StreakService {
     suspend fun updateStreak(uid: String): DailyStreak
 }
 
+

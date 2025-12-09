@@ -403,13 +403,17 @@ class ExamViewModel @Inject constructor(
 
         val updatedAtLocal = timeProvider.currentTimeMillis()
         var totalCoins = 0
+        var totalXp = 0L
 
         // 1. Base: coins por respuestas correctas (10 coins por correcta)
         val correctAnswers = answers.count { it.isCorrect }
         val baseCoins = correctAnswers * 10
         if (baseCoins > 0) {
             profileRepository.addCoins(uid, baseCoins, "correct_answer", updatedAtLocal, SyncState.PENDING)
+            // XP se gana igual que coins
+            profileRepository.addXp(uid, baseCoins.toLong(), updatedAtLocal, SyncState.PENDING)
             totalCoins += baseCoins
+            totalXp += baseCoins
         }
 
         // 2. Bonus por velocidad: respuestas < 60 segundos (5 coins extra por cada una)
@@ -418,7 +422,10 @@ class ExamViewModel @Inject constructor(
         val speedBonus = fastAnswers * 5
         if (speedBonus > 0) {
             profileRepository.addCoins(uid, speedBonus, "speed_bonus", updatedAtLocal, SyncState.PENDING)
+            // XP se gana igual que coins
+            profileRepository.addXp(uid, speedBonus.toLong(), updatedAtLocal, SyncState.PENDING)
             totalCoins += speedBonus
+            totalXp += speedBonus
         }
 
         // 3. Bonus de racha se otorga automáticamente en StreakService cuando se alcanza 3 días
