@@ -56,3 +56,4 @@
 - **NetworkType.CONNECTED**: El Worker solo se ejecuta cuando hay conexión a internet.
 - Esto asegura que no se intente sincronizar sin conexión, evitando fallos innecesarios.
 
+

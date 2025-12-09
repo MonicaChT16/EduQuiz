@@ -2,61 +2,82 @@ package com.eduquiz.feature.ranking
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-// BORRAMOS el import de domain que causaba error
-// import com.eduquiz.domain.ranking.LeaderboardEntry 
+import com.eduquiz.domain.profile.ProfileRepository
+import com.eduquiz.domain.ranking.LeaderboardEntry
+import com.eduquiz.domain.ranking.RankingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+data class RankingUiState(
+    val isLoading: Boolean = true,
+    val entries: List<LeaderboardEntry> = emptyList(),
+    val error: String? = null,
+    val classroomLabel: String? = null,
+    val currentUid: String? = null,
+)
 
 @HiltViewModel
-class RankingViewModel @Inject constructor() : ViewModel() {
+class RankingViewModel @Inject constructor(
+    private val rankingRepository: RankingRepository,
+    private val profileRepository: ProfileRepository
+) : ViewModel() {
 
-    private val _state = MutableStateFlow(RankingState())
-    val state: StateFlow<RankingState> = _state.asStateFlow()
+    private val uidState = MutableStateFlow<String?>(null)
+
+    val state: StateFlow<RankingUiState> = uidState
+        .filterNotNull()
+        .flatMapLatest { uid ->
+            profileRepository.observeProfile(uid)
+                .filterNotNull()
+                .flatMapLatest { profile ->
+                    val schoolId = profile.schoolId
+                    val classroomId = profile.classroomId
+                    if (schoolId.isBlank() || classroomId.isBlank()) {
+                        // Emitimos error si falta la relación al aula.
+                        flowOf(
+                            RankingUiState(
+                                isLoading = false,
+                                error = "Tu perfil no tiene aula asignada",
+                                classroomLabel = null,
+                                currentUid = uid
+                            )
+                        )
+                    } else {
+                        rankingRepository
+                            .observeClassroomLeaderboard(schoolId, classroomId)
+                            .map { entries ->
+                                RankingUiState(
+                                    isLoading = false,
+                                    entries = entries,
+                                    error = null,
+                                    classroomLabel = "$schoolId / $classroomId",
+                                    currentUid = uid
+                                )
+                            }
+                    }
+                }
+        }
+        .catch { emit(RankingUiState(isLoading = false, error = it.message ?: "Error desconocido")) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = RankingUiState()
+        )
 
     fun start(uid: String) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, currentUid = uid) }
-            
-            // Simulamos red
-            delay(1000)
-
-            // Datos falsos (Dummy) para que funcione la UI
-            val mockEntries = listOf(
-                LeaderboardEntry("id_1", "Ana García", 1500),
-                LeaderboardEntry(uid, "Tú", 1350),
-                LeaderboardEntry("id_3", "Carlos Diaz", 1200),
-                LeaderboardEntry("id_4", "Lucía Mendez", 900)
-            )
-
-            _state.update { 
-                it.copy(
-                    isLoading = false, 
-                    entries = mockEntries,
-                    classroomLabel = "Aula Demo"
-                ) 
-            }
+            uidState.emit(uid)
         }
     }
 }
 
-data class RankingState(
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val entries: List<LeaderboardEntry> = emptyList(),
-    val classroomLabel: String? = null,
-    val currentUid: String? = null
-)
-
-// --- AQUÍ DEFINIMOS LA CLASE PARA QUE NO DE ERROR ---
-// Esto sustituye al archivo que te falta del dominio
-data class LeaderboardEntry(
-    val uid: String,
-    val displayName: String,
-    val totalScore: Int
-)

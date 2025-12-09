@@ -48,6 +48,17 @@ class ProfileRepositoryImpl @Inject constructor(
         profileDao.updateCoins(uid, delta, updatedAtLocal, syncState)
     }
 
+    override suspend fun addXp(uid: String, delta: Long, updatedAtLocal: Long, syncState: String) {
+        // Verificar que el perfil exista antes de actualizar
+        val profile = profileDao.observeProfile(uid).firstOrNull()
+        if (profile == null) {
+            android.util.Log.w("ProfileRepository", "Profile not found for $uid, cannot add XP")
+            return
+        }
+        // XP siempre se suma (nunca disminuye)
+        profileDao.updateXp(uid, delta, updatedAtLocal, syncState)
+    }
+
     override suspend fun updateSelectedCosmetic(
         uid: String,
         cosmeticId: String?,
@@ -55,6 +66,10 @@ class ProfileRepositoryImpl @Inject constructor(
         syncState: String
     ) {
         profileDao.updateSelectedCosmetic(uid, cosmeticId, updatedAtLocal, syncState)
+    }
+
+    override suspend fun updatePhotoUrl(uid: String, photoUrl: String?, updatedAtLocal: Long, syncState: String) {
+        profileDao.updatePhotoUrl(uid, photoUrl, updatedAtLocal, syncState)
     }
 
     override suspend fun saveDailyStreak(streak: DailyStreak) {

@@ -30,3 +30,4 @@ sealed class AchievementCondition {
     data class CorrectAnswersAccumulated(val count: Int) : AchievementCondition()
 }
 
+

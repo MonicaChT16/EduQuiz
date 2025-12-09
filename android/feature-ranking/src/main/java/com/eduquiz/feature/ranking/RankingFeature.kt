@@ -23,9 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-
-// IMPORTANTE: HE BORRADO EL IMPORT DE 'com.eduquiz.domain...'
-// Ahora usará el LeaderboardEntry que definimos en RankingViewModel.kt
+import com.eduquiz.domain.ranking.LeaderboardEntry
 
 @Composable
 fun RankingFeature(
@@ -115,6 +113,46 @@ private fun RankingList(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RankingRow(
+    position: Int,
+    entry: LeaderboardEntry,
+    isCurrentUser: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "#$position",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Column {
+                Text(
+                    text = entry.displayName.ifBlank { "Sin nombre" },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isCurrentUser) FontWeight.Bold else FontWeight.Normal
+                )
+                Text(
+                    text = entry.uid,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Text(
+            text = "${entry.totalScore} pts",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = if (isCurrentUser) FontWeight.Bold else FontWeight.Normal
+        )
     }
 }
 

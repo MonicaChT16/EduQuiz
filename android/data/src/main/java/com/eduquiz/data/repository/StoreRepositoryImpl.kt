@@ -10,38 +10,52 @@ import javax.inject.Inject
 
 /**
  * Implementación del catálogo de cosméticos (MVP hardcoded).
+ * Los cosméticos son overlays que se aplican sobre la foto de perfil.
+ * Por ahora usamos URLs de ejemplo - en producción estas vendrían de Firebase Storage o un CDN.
  */
 object CosmeticCatalog {
     val COSMETICS = listOf(
         Cosmetic(
-            cosmeticId = "cosmetic_1",
-            name = "Avatar Clásico",
-            cost = 0, // Gratis
-            description = "Avatar predeterminado"
+            cosmeticId = "basic_frame",
+            name = "Marco Básico",
+            cost = 0, // Gratis - cosmético inicial
+            description = "Un marco simple y elegante para tu foto de perfil",
+            overlayImageUrl = null // Se renderiza como borde simple en la UI
         ),
         Cosmetic(
-            cosmeticId = "cosmetic_2",
-            name = "Avatar Estudiante",
-            cost = 50,
-            description = "Avatar de estudiante dedicado"
-        ),
-        Cosmetic(
-            cosmeticId = "cosmetic_3",
-            name = "Avatar Profesor",
+            cosmeticId = "crown_gold",
+            name = "Corona Dorada",
             cost = 100,
-            description = "Avatar de profesor sabio"
+            description = "Una elegante corona dorada sobre tu foto",
+            overlayImageUrl = "https://example.com/overlays/crown_gold.png" // TODO: Reemplazar con URL real
         ),
         Cosmetic(
-            cosmeticId = "cosmetic_4",
-            name = "Avatar Campeón",
+            cosmeticId = "star_gold",
+            name = "Estrella Dorada",
+            cost = 150,
+            description = "Una estrella brillante en tu foto",
+            overlayImageUrl = "https://example.com/overlays/star_gold.png" // TODO: Reemplazar con URL real
+        ),
+        Cosmetic(
+            cosmeticId = "badge_champion",
+            name = "Insignia de Campeón",
             cost = 200,
-            description = "Avatar de campeón académico"
+            description = "Insignia de campeón académico",
+            overlayImageUrl = "https://example.com/overlays/badge_champion.png" // TODO: Reemplazar con URL real
         ),
         Cosmetic(
-            cosmeticId = "cosmetic_5",
-            name = "Avatar Estrella",
-            cost = 500,
-            description = "Avatar de estrella brillante"
+            cosmeticId = "halo_gold",
+            name = "Aureola Dorada",
+            cost = 300,
+            description = "Una aureola brillante alrededor de tu foto",
+            overlayImageUrl = "https://example.com/overlays/halo_gold.png" // TODO: Reemplazar con URL real
+        ),
+        Cosmetic(
+            cosmeticId = "frame_gold",
+            name = "Marco Dorado",
+            cost = 250,
+            description = "Un marco elegante alrededor de tu foto",
+            overlayImageUrl = "https://example.com/overlays/frame_gold.png" // TODO: Reemplazar con URL real
         )
     )
 }
