@@ -7,7 +7,8 @@ enum class RootDestination(val route: String, val title: String) {
     Exam("exam", "Exámenes"),
     Profile("profile", "Perfil"),
     Store("store", "Tienda"),
-    Ranking("ranking", "Ranking");
+    Ranking("ranking", "Tabla de clasificación"),
+    Settings("settings", "Ajustes");
 
     companion object {
         val allDestinations = values().toList()
