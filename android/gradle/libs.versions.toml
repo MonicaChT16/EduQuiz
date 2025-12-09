@@ -1,6 +1,6 @@
 [versions]
 androidGradlePlugin = "8.6.0"
-kotlin = "2.1.0"
+kotlin = "2.0.21"
 composeBom = "2024.06.00"
 material3 = "1.2.1"
 hilt = "2.52"
@@ -37,7 +37,8 @@ androidx-compose-material3 = { module = "androidx.compose.material3:material3", 
 androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 androidx-compose-foundation = { module = "androidx.compose.foundation:foundation" }
 androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
-androidx-hilt-work = { module = "androidx.hilt:hilt-work", version.ref = "hilt" }
+androidx-hilt-work = { module = "androidx.hilt:hilt-work", version = "1.2.0" }
+androidx-hilt-compiler = { module = "androidx.hilt:hilt-compiler", version = "1.2.0" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
 firebase-firestore = { module = "com.google.firebase:firebase-firestore" }

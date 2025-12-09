@@ -6,6 +6,7 @@ import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
 class EduQuizApp : Application() {
+
     override fun onCreate() {
         super.onCreate()
         FirebaseApp.initializeApp(this)

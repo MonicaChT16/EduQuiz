@@ -44,6 +44,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eduquiz.domain.exam.ExamStatus
+import com.eduquiz.feature.exam.ExamResult
 
 @Composable
 fun ExamFeature(
@@ -76,9 +77,10 @@ fun ExamFeature(
             )
         }
         ExamStage.Finished -> ExamResultScreen(
-            state = state,
+            attemptId = state.attemptId,
             onExit = onExit,
-            modifier = modifier
+            modifier = modifier,
+            viewModel = viewModel
         )
     }
 }
@@ -234,10 +236,19 @@ private fun ExamInProgressScreen(
 
 @Composable
 private fun ExamResultScreen(
-    state: ExamUiState,
+    attemptId: String?,
     onExit: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: ExamViewModel = hiltViewModel()
 ) {
+    val resultState by viewModel.resultState.collectAsStateWithLifecycle()
+    
+    LaunchedEffect(attemptId) {
+        if (attemptId != null) {
+            viewModel.loadResult(attemptId)
+        }
+    }
+
     Surface(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -246,22 +257,27 @@ private fun ExamResultScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = "Resultados", style = MaterialTheme.typography.headlineMedium)
-            Text(
-                text = "Estado: ${state.finishedStatus ?: ExamStatus.COMPLETED}",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                text = "Puntaje: ${state.correctCount} / ${state.totalQuestions}",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Preguntas respondidas: ${state.answeredCount}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Button(onClick = onExit) {
-                Text(text = "Volver")
+            if (resultState == null) {
+                CircularProgressIndicator()
+            } else {
+                val result = resultState!!
+                Text(text = "Resultados", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    text = "Estado: ${result.status}",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = "Puntaje: ${result.scoreRaw}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Preguntas respondidas: ${result.answeredCount}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Button(onClick = onExit) {
+                    Text(text = "Volver")
+                }
             }
         }
     }

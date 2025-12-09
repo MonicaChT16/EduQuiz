@@ -7,9 +7,14 @@ import com.eduquiz.domain.exam.ExamAttempt
 import com.eduquiz.domain.exam.ExamOrigin
 import com.eduquiz.domain.exam.ExamRepository
 import com.eduquiz.domain.exam.ExamStatus
+import com.eduquiz.feature.exam.ExamResult
+import com.eduquiz.domain.achievements.AchievementEngine
+import com.eduquiz.domain.achievements.AchievementEvent
 import com.eduquiz.domain.pack.Pack
 import com.eduquiz.domain.pack.PackRepository
+import com.eduquiz.domain.profile.ProfileRepository
 import com.eduquiz.domain.profile.SyncState
+import com.eduquiz.domain.sync.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlin.math.max
@@ -28,11 +33,17 @@ import java.util.UUID
 class ExamViewModel @Inject constructor(
     private val packRepository: PackRepository,
     private val examRepository: ExamRepository,
+    private val profileRepository: ProfileRepository,
+    private val achievementEngine: AchievementEngine,
     private val timeProvider: TimeProvider,
+    private val syncRepository: SyncRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ExamUiState(stage = ExamStage.Loading))
     val state: StateFlow<ExamUiState> = _state.asStateFlow()
+
+    private val _resultState = MutableStateFlow<ExamResult?>(null)
+    val resultState: StateFlow<ExamResult?> = _resultState.asStateFlow()
 
     private val answers = mutableMapOf<String, ExamAnswer>()
     private var attempt: ExamAttempt? = null
@@ -61,9 +72,18 @@ class ExamViewModel @Inject constructor(
 
         viewModelScope.launch {
             _state.update { it.copy(isBusy = true, errorMessage = null) }
-            val attemptId = "attempt-${UUID.randomUUID()}"
             val startedAtLocal = timeProvider.currentTimeMillis()
             val duration = DEFAULT_EXAM_DURATION_MS
+            
+            // Usar el nuevo método startAttempt que crea el intento en Room
+            val attemptId = examRepository.startAttempt(
+                uid = uid,
+                packId = pack.packId,
+                startedAtLocal = startedAtLocal,
+                durationMs = duration
+            )
+            
+            // Crear el objeto attempt para uso local
             attempt = ExamAttempt(
                 attemptId = attemptId,
                 uid = uid,
@@ -77,7 +97,7 @@ class ExamViewModel @Inject constructor(
                 origin = ExamOrigin.OFFLINE,
                 syncState = SyncState.PENDING
             )
-            examRepository.createAttempt(requireNotNull(attempt))
+            
             answers.clear()
             startedElapsed = timeProvider.elapsedRealtime()
             lockForCurrentQuestion()
@@ -132,22 +152,29 @@ class ExamViewModel @Inject constructor(
 
         val now = timeProvider.elapsedRealtime()
         val elapsedOnQuestion = (now - questionShownAt).coerceAtLeast(0L)
-        val existingAnswer = answers[question.question.questionId]
-        val timeSpent = max(existingAnswer?.timeSpentMs ?: 0L, elapsedOnQuestion)
-        val isCorrect = optionId == question.question.correctOptionId
+        // El tiempo gastado es el tiempo desde que se mostró la pregunta hasta ahora
+        // Si el usuario cambia de opción, el tiempo se actualiza al tiempo total transcurrido
+        val timeSpent = elapsedOnQuestion
 
-        val answer = ExamAnswer(
-            attemptId = attemptId,
-            questionId = question.question.questionId,
-            selectedOptionId = optionId,
-            isCorrect = isCorrect,
-            timeSpentMs = timeSpent
-        )
-        answers[question.question.questionId] = answer
-        _state.update { it.copy(answers = it.answers + (question.question.questionId to optionId)) }
-
+        // Usar el nuevo método submitAnswer que calcula isCorrect automáticamente
         viewModelScope.launch {
-            examRepository.upsertAnswer(answer)
+            examRepository.submitAnswer(
+                attemptId = attemptId,
+                questionId = question.question.questionId,
+                optionId = optionId,
+                timeSpentMs = timeSpent
+            )
+            
+            // Actualizar estado local
+            val savedAnswer = examRepository.getAnswersForAttempt(attemptId)
+                .find { it.questionId == question.question.questionId }
+            
+            if (savedAnswer != null) {
+                answers[question.question.questionId] = savedAnswer
+                _state.update { 
+                    it.copy(answers = it.answers + (question.question.questionId to optionId)) 
+                }
+            }
         }
     }
 
@@ -234,6 +261,9 @@ class ExamViewModel @Inject constructor(
         val firstUnanswered = questions.indexOfFirst { it.question.questionId !in answers.keys }
         val nextIndex = if (firstUnanswered >= 0) firstUnanswered else 0
 
+        // Calcular score desde las respuestas guardadas
+        val scoreFromSaved = savedAnswers.count { it.isCorrect }
+
         lockForCurrentQuestion()
         _state.update {
             it.copy(
@@ -247,7 +277,7 @@ class ExamViewModel @Inject constructor(
                 remainingMs = remaining.coerceAtLeast(0L),
                 lockRemainingMs = OPTION_LOCK_MS,
                 finishedStatus = null,
-                correctCount = calculateScore(),
+                correctCount = scoreFromSaved,
                 isBusy = false
             )
         }
@@ -326,26 +356,89 @@ class ExamViewModel @Inject constructor(
     private fun finishExam(status: String) {
         if (_state.value.stage == ExamStage.Finished) return
         val currentAttempt = attempt ?: return
+        val uid = userId ?: return
         timerJob?.cancel()
 
         viewModelScope.launch {
             _state.update { it.copy(isBusy = true) }
-            val score = calculateScore()
+            
+            // Usar el nuevo método finishAttempt que calcula scoreRaw automáticamente
             examRepository.finishAttempt(
                 attemptId = currentAttempt.attemptId,
                 finishedAtLocal = timeProvider.currentTimeMillis(),
-                status = status,
-                scoreRaw = score,
-                scoreValidated = score,
-                syncState = SyncState.PENDING
+                status = status
             )
+            
+            // Calcular y otorgar EduCoins
+            if (status != ExamStatus.CANCELLED_CHEAT) {
+                calculateAndAwardCoins(uid, currentAttempt.attemptId)
+                
+                // Evaluar logros relacionados con completar examen
+                achievementEngine.evaluateAndUnlock(
+                    uid = uid,
+                    event = AchievementEvent.ExamCompleted
+                )
+            }
+            
+            // Encolar sincronización inmediata
+            syncRepository.enqueueSyncNow()
+            
+            // Cargar resultado desde Room
+            loadResult(currentAttempt.attemptId)
+            
             _state.update {
                 it.copy(
                     stage = ExamStage.Finished,
                     finishedStatus = status,
-                    correctCount = score,
                     remainingMs = 0L,
                     isBusy = false
+                )
+            }
+        }
+    }
+
+    private suspend fun calculateAndAwardCoins(uid: String, attemptId: String) {
+        val answers = examRepository.getAnswersForAttempt(attemptId)
+        if (answers.isEmpty()) return
+
+        val updatedAtLocal = timeProvider.currentTimeMillis()
+        var totalCoins = 0
+
+        // 1. Base: coins por respuestas correctas (10 coins por correcta)
+        val correctAnswers = answers.count { it.isCorrect }
+        val baseCoins = correctAnswers * 10
+        if (baseCoins > 0) {
+            profileRepository.addCoins(uid, baseCoins, "correct_answer", updatedAtLocal, SyncState.PENDING)
+            totalCoins += baseCoins
+        }
+
+        // 2. Bonus por velocidad: respuestas < 60 segundos (5 coins extra por cada una)
+        val speedBonusThreshold = 60_000L // 60 segundos en ms
+        val fastAnswers = answers.count { it.isCorrect && it.timeSpentMs < speedBonusThreshold }
+        val speedBonus = fastAnswers * 5
+        if (speedBonus > 0) {
+            profileRepository.addCoins(uid, speedBonus, "speed_bonus", updatedAtLocal, SyncState.PENDING)
+            totalCoins += speedBonus
+        }
+
+        // 3. Bonus de racha se otorga automáticamente en StreakService cuando se alcanza 3 días
+        // El bonus se otorga al iniciar sesión, no al completar examen
+    }
+
+    fun loadResult(attemptId: String) {
+        viewModelScope.launch {
+            val finishedAttempt = examRepository.getAttempts(userId ?: "")
+                .find { it.attemptId == attemptId }
+            
+            if (finishedAttempt != null) {
+                val answers = examRepository.getAnswersForAttempt(attemptId)
+                _resultState.value = ExamResult(
+                    attemptId = attemptId,
+                    status = finishedAttempt.status,
+                    scoreRaw = finishedAttempt.scoreRaw,
+                    answeredCount = answers.size,
+                    finishedAtLocal = finishedAttempt.finishedAtLocal,
+                    totalQuestions = _state.value.totalQuestions
                 )
             }
         }
@@ -356,8 +449,12 @@ class ExamViewModel @Inject constructor(
     private fun remainingFromAttempt(attempt: ExamAttempt): Long {
         val elapsedWall = (timeProvider.currentTimeMillis() - attempt.startedAtLocal).coerceAtLeast(0L)
         val nowElapsed = timeProvider.elapsedRealtime()
-        startedElapsed = nowElapsed - elapsedWall
-        return attempt.durationMs - elapsedWall
+        // Ajustar startedElapsed para que el cálculo del timer sea correcto
+        // Usamos elapsedWall limitado a durationMs para evitar valores negativos
+        val elapsedClamped = elapsedWall.coerceAtMost(attempt.durationMs)
+        startedElapsed = nowElapsed - elapsedClamped
+        val remaining = attempt.durationMs - elapsedWall
+        return remaining.coerceAtLeast(0L)
     }
 
     private fun currentLockRemaining(now: Long = timeProvider.elapsedRealtime()): Long {

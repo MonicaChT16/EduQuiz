@@ -28,8 +28,14 @@ android {
     }
 }
 
+kapt {
+    correctErrorTypes = true
+    useBuildCache = true
+}
+
 dependencies {
     implementation(project(":core"))
+    implementation(project(":domain"))
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)

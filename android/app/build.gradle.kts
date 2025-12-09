@@ -40,6 +40,11 @@ android {
     }
 }
 
+kapt {
+    correctErrorTypes = true
+    useBuildCache = true
+}
+
 dependencies {
     implementation(project(":core"))
     implementation(project(":domain"))

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "3b3bb1230ec854c03c52ad520a692f17",
+    "identityHash": "ea6b1b8a4d1b7ef3cebd9a359aeb6378",
     "entities": [
       {
         "tableName": "pack_entity",
@@ -44,9 +44,7 @@
           "columnNames": [
             "packId"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "text_entity",
@@ -157,8 +155,7 @@
           {
             "fieldPath": "explanationText",
             "columnName": "explanationText",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "explanationStatus",
@@ -275,7 +272,7 @@
       },
       {
         "tableName": "user_profile_entity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uid` TEXT NOT NULL, `displayName` TEXT NOT NULL, `photoUrl` TEXT, `schoolId` TEXT NOT NULL, `classroomId` TEXT NOT NULL, `coins` INTEGER NOT NULL, `selectedCosmeticId` TEXT NOT NULL, `updatedAtLocal` INTEGER NOT NULL, `syncState` TEXT NOT NULL, PRIMARY KEY(`uid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uid` TEXT NOT NULL, `displayName` TEXT NOT NULL, `photoUrl` TEXT, `schoolId` TEXT NOT NULL, `classroomId` TEXT NOT NULL, `coins` INTEGER NOT NULL, `selectedCosmeticId` TEXT, `updatedAtLocal` INTEGER NOT NULL, `syncState` TEXT NOT NULL, PRIMARY KEY(`uid`))",
         "fields": [
           {
             "fieldPath": "uid",
@@ -292,8 +289,7 @@
           {
             "fieldPath": "photoUrl",
             "columnName": "photoUrl",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "schoolId",
@@ -316,8 +312,7 @@
           {
             "fieldPath": "selectedCosmeticId",
             "columnName": "selectedCosmeticId",
-            "affinity": "TEXT",
-            "notNull": true
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "updatedAtLocal",
@@ -337,9 +332,7 @@
           "columnNames": [
             "uid"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "inventory_entity",
@@ -548,8 +541,7 @@
           {
             "fieldPath": "finishedAtLocal",
             "columnName": "finishedAtLocal",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "durationMs",
@@ -572,8 +564,7 @@
           {
             "fieldPath": "scoreValidated",
             "columnName": "scoreValidated",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "origin",
@@ -727,10 +718,9 @@
         ]
       }
     ],
-    "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3b3bb1230ec854c03c52ad520a692f17')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ea6b1b8a4d1b7ef3cebd9a359aeb6378')"
     ]
   }
 }

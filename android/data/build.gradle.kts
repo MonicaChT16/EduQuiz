@@ -32,6 +32,8 @@ android {
 }
 
 kapt {
+    correctErrorTypes = true
+    useBuildCache = true
     arguments {
         arg("room.schemaLocation", "$projectDir/schemas")
     }
@@ -50,11 +52,15 @@ dependencies {
     implementation(libs.coroutines.play.services)
     implementation(libs.kotlinx.coroutines.core)
 
+    implementation(libs.androidx.work.ktx)
+    implementation(libs.androidx.hilt.work)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
+    kapt(libs.androidx.hilt.compiler)
 
     testImplementation(kotlin("test"))
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation("androidx.room:room-testing:${libs.versions.room.get()}")
 }

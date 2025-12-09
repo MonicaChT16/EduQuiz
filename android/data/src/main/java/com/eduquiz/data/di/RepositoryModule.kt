@@ -3,10 +3,12 @@ package com.eduquiz.data.di
 import com.eduquiz.data.repository.ExamRepositoryImpl
 import com.eduquiz.data.repository.PackRepositoryImpl
 import com.eduquiz.data.repository.ProfileRepositoryImpl
+import com.eduquiz.data.repository.StoreRepositoryImpl
 import com.eduquiz.data.repository.SyncRepositoryImpl
 import com.eduquiz.domain.exam.ExamRepository
 import com.eduquiz.domain.pack.PackRepository
 import com.eduquiz.domain.profile.ProfileRepository
+import com.eduquiz.domain.store.StoreRepository
 import com.eduquiz.domain.sync.SyncRepository
 import dagger.Binds
 import dagger.Module
@@ -33,4 +35,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindSyncRepository(impl: SyncRepositoryImpl): SyncRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindStoreRepository(impl: StoreRepositoryImpl): StoreRepository
 }
