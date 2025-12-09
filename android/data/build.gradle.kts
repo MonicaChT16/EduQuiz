@@ -49,13 +49,15 @@ dependencies {
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.storage)
     implementation(libs.coroutines.play.services)
     implementation(libs.kotlinx.coroutines.core)
 
     implementation(libs.androidx.work.ktx)
-
+    implementation(libs.androidx.hilt.work)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
+    kapt(libs.androidx.hilt.compiler)
 
     testImplementation(kotlin("test"))
     testImplementation(libs.robolectric)

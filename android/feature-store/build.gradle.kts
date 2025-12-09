@@ -34,22 +34,25 @@ kapt {
 }
 
 dependencies {
-    implementation(project(":core"))
-    implementation(project(":domain"))
-    implementation(project(":feature-auth"))
-    
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.compose.foundation)
-    debugImplementation(libs.androidx.compose.ui.tooling)
-    
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.viewmodel.ktx)
-    implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.androidx.hilt.navigation.compose)
-    
-    implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
-}
+        implementation(project(":core"))
+        implementation(project(":domain"))
+        implementation(project(":feature-auth"))
+        
+        implementation(platform(libs.androidx.compose.bom))
+        implementation(libs.androidx.compose.material3)
+        implementation(libs.androidx.compose.ui)
+        implementation(libs.androidx.compose.ui.tooling.preview)
+        implementation(libs.androidx.compose.foundation)
+        debugImplementation(libs.androidx.compose.ui.tooling)
+        
+        implementation(libs.androidx.lifecycle.runtime.ktx)
+        implementation(libs.androidx.lifecycle.viewmodel.ktx)
+        implementation(libs.androidx.lifecycle.runtime.compose)
+        implementation(libs.androidx.hilt.navigation.compose)
+        
+        implementation(libs.hilt.android)
+        kapt(libs.hilt.compiler)
+        
+        // Para cargar imágenes desde URL
+        implementation("io.coil-kt:coil-compose:2.5.0")
+    }

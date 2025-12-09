@@ -11,7 +11,17 @@ interface ProfileRepository {
      * @param reason Razón por la que se otorgan los coins (ej: "correct_answer", "speed_bonus", "streak_bonus")
      */
     suspend fun addCoins(uid: String, delta: Int, reason: String, updatedAtLocal: Long, syncState: String)
-    suspend fun updateSelectedCosmetic(uid: String, cosmeticId: String, updatedAtLocal: Long, syncState: String)
+    /**
+     * Agrega XP al perfil. La XP es acumulativa y nunca disminuye.
+     * @param delta Cantidad de XP a agregar (siempre positivo)
+     */
+    suspend fun addXp(uid: String, delta: Long, updatedAtLocal: Long, syncState: String)
+    suspend fun updateSelectedCosmetic(uid: String, cosmeticId: String?, updatedAtLocal: Long, syncState: String)
+    
+    /**
+     * Actualiza la URL de la foto de perfil del usuario.
+     */
+    suspend fun updatePhotoUrl(uid: String, photoUrl: String?, updatedAtLocal: Long, syncState: String)
 
     suspend fun saveDailyStreak(streak: DailyStreak)
     fun observeDailyStreak(uid: String): Flow<DailyStreak?>

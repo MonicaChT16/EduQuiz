@@ -102,6 +102,7 @@ data class UserProfileEntity(
     val schoolId: String,
     val classroomId: String,
     val coins: Int,
+    val xp: Long = 0L, // Puntos de experiencia (acumulativo, nunca disminuye)
     val selectedCosmeticId: String?, // Nullable porque puede no tener cosmético equipado
     val updatedAtLocal: Long,
     val syncState: String,
@@ -304,11 +305,29 @@ interface ProfileDao {
     @Query(
         """
         UPDATE user_profile_entity 
+        SET xp = xp + :delta, updatedAtLocal = :updatedAtLocal, syncState = :syncState 
+        WHERE uid = :uid
+        """
+    )
+    suspend fun updateXp(uid: String, delta: Long, updatedAtLocal: Long, syncState: String)
+
+    @Query(
+        """
+        UPDATE user_profile_entity 
         SET selectedCosmeticId = :cosmeticId, updatedAtLocal = :updatedAtLocal, syncState = :syncState 
         WHERE uid = :uid
         """
     )
-    suspend fun updateSelectedCosmetic(uid: String, cosmeticId: String, updatedAtLocal: Long, syncState: String)
+    suspend fun updateSelectedCosmetic(uid: String, cosmeticId: String?, updatedAtLocal: Long, syncState: String)
+
+    @Query(
+        """
+        UPDATE user_profile_entity 
+        SET photoUrl = :photoUrl, updatedAtLocal = :updatedAtLocal, syncState = :syncState 
+        WHERE uid = :uid
+        """
+    )
+    suspend fun updatePhotoUrl(uid: String, photoUrl: String?, updatedAtLocal: Long, syncState: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDailyStreak(entity: DailyStreakEntity)
@@ -416,7 +435,7 @@ interface ExamDao {
         ExamAttemptEntity::class,
         ExamAnswerEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -429,6 +448,11 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         const val NAME = "eduquiz.db"
-        val MIGRATIONS: Array<Migration> = emptyArray()
+        val MIGRATIONS: Array<Migration> = arrayOf(
+            Migration(1, 2) { database ->
+                // Agregar campo XP a user_profile_entity
+                database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN xp INTEGER NOT NULL DEFAULT 0")
+            }
+        )
     }
 }

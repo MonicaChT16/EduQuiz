@@ -1,14 +1,20 @@
 package com.eduquiz.feature.store
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -20,10 +26,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import com.eduquiz.domain.store.Cosmetic
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 
 @Composable
@@ -120,7 +130,7 @@ fun StoreFeature(
 
 @Composable
 private fun CosmeticCard(
-    cosmetic: com.eduquiz.domain.store.Cosmetic,
+    cosmetic: Cosmetic,
     isPurchased: Boolean,
     isEquipped: Boolean,
     canAfford: Boolean,
@@ -139,8 +149,17 @@ private fun CosmeticCard(
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Preview del cosmético sobre una foto de perfil de ejemplo
+            CosmeticPreview(
+                overlayUrl = cosmetic.overlayImageUrl,
+                cosmeticName = cosmetic.name,
+                cosmeticId = cosmetic.cosmeticId,
+                modifier = Modifier.size(80.dp)
+            )
+            
             Text(
                 text = cosmetic.name,
                 style = MaterialTheme.typography.titleMedium,
@@ -189,6 +208,75 @@ private fun CosmeticCard(
                 ) {
                     Text(text = if (canAfford) "Comprar" else "Insuficientes coins")
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Preview del cosmético mostrando cómo se verá sobre una foto de perfil.
+ */
+@Composable
+private fun CosmeticPreview(
+    overlayUrl: String?,
+    cosmeticName: String,
+    cosmeticId: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        // Foto de perfil de ejemplo (placeholder con gradiente)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.secondaryContainer
+                        )
+                    )
+                )
+                .clip(CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            // Placeholder con iniciales o icono
+            Text(
+                text = cosmeticName.take(1).uppercase(),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        
+        // Marco básico: borde simple para el primer cosmético
+        if (cosmeticId == "basic_frame") {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(
+                        width = 4.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = CircleShape
+                    )
+            )
+        }
+        
+        // Overlay del cosmético (solo si la URL es válida y no es de ejemplo)
+        overlayUrl?.let { url ->
+            if (!url.contains("example.com") && url.isNotBlank()) {
+                AsyncImage(
+                    model = url,
+                    contentDescription = "Preview del cosmético $cosmeticName",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                    onError = {
+                        // Si falla la carga, no mostrar nada (ya tenemos el placeholder)
+                    }
+                )
             }
         }
     }
