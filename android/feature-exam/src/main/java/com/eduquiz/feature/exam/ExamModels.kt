@@ -2,6 +2,7 @@ package com.eduquiz.feature.exam
 
 import com.eduquiz.domain.pack.Option
 import com.eduquiz.domain.pack.Pack
+import com.eduquiz.domain.pack.PackMeta
 import com.eduquiz.domain.pack.Question
 import com.eduquiz.domain.pack.TextContent
 
@@ -19,6 +20,7 @@ data class ExamContent(
 data class ExamUiState(
     val stage: ExamStage = ExamStage.Loading,
     val pack: Pack? = null,
+    val availablePack: PackMeta? = null,
     val attemptId: String? = null,
     val questions: List<ExamContent> = emptyList(),
     val currentIndex: Int = 0,
@@ -32,6 +34,8 @@ data class ExamUiState(
     val correctCount: Int = 0,
     val errorMessage: String? = null,
     val isBusy: Boolean = false,
+    val isDownloading: Boolean = false,
+    val isLoadingPack: Boolean = false,
 )
 
 val ExamUiState.totalQuestions: Int

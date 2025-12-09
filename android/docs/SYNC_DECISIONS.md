@@ -57,3 +57,4 @@
 - Esto asegura que no se intente sincronizar sin conexión, evitando fallos innecesarios.
 
 
+

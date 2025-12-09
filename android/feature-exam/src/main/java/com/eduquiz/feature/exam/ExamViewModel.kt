@@ -200,13 +200,20 @@ class ExamViewModel @Inject constructor(
         _state.update { it.copy(stage = ExamStage.Loading, isBusy = true, errorMessage = null) }
         val pack = packRepository.observeActivePack().firstOrNull()
         if (pack == null) {
+            // Si no hay pack activo, buscar packs disponibles
+            val availablePack = runCatching { packRepository.fetchCurrentPackMeta() }.getOrNull()
             _state.update {
                 it.copy(
                     stage = ExamStage.Start,
                     pack = null,
+                    availablePack = availablePack,
                     questions = emptyList(),
                     isBusy = false,
-                    errorMessage = "Descarga un pack para iniciar el simulacro."
+                    errorMessage = if (availablePack == null) {
+                        "No hay packs disponibles. Intenta refrescar."
+                    } else {
+                        "Descarga un pack para iniciar el simulacro."
+                    }
                 )
             }
             return
@@ -232,6 +239,9 @@ class ExamViewModel @Inject constructor(
                 .firstOrNull { attempt -> attempt.status == ExamStatus.IN_PROGRESS && attempt.packId == pack.packId }
         }
 
+        // Buscar packs disponibles en paralelo (para mostrar si hay actualizaciones)
+        val availablePack = runCatching { packRepository.fetchCurrentPackMeta() }.getOrNull()
+
         if (inProgressAttempt != null) {
             resumeAttempt(inProgressAttempt, pack, questions)
         } else {
@@ -239,6 +249,7 @@ class ExamViewModel @Inject constructor(
                 it.copy(
                     stage = ExamStage.Start,
                     pack = pack,
+                    availablePack = availablePack,
                     questions = questions,
                     durationMs = DEFAULT_EXAM_DURATION_MS,
                     remainingMs = DEFAULT_EXAM_DURATION_MS,
@@ -448,6 +459,53 @@ class ExamViewModel @Inject constructor(
                     totalQuestions = _state.value.totalQuestions
                 )
             }
+        }
+    }
+
+    fun refreshAvailablePack() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoadingPack = true, errorMessage = null) }
+            val availablePack = runCatching { packRepository.fetchCurrentPackMeta() }
+                .getOrElse { throwable ->
+                    _state.update {
+                        it.copy(
+                            isLoadingPack = false,
+                            errorMessage = throwable.localizedMessage ?: "Error al buscar packs disponibles."
+                        )
+                    }
+                    null
+                }
+            _state.update {
+                it.copy(
+                    availablePack = availablePack,
+                    isLoadingPack = false,
+                    errorMessage = if (availablePack == null) {
+                        "No hay packs disponibles en este momento."
+                    } else {
+                        null
+                    }
+                )
+            }
+        }
+    }
+
+    fun downloadPack() {
+        val packId = _state.value.availablePack?.packId ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(isDownloading = true, errorMessage = null) }
+            runCatching { packRepository.downloadPack(packId) }
+                .onSuccess { downloadedPack ->
+                    // Recargar el estado inicial para actualizar con el pack descargado
+                    loadInitialState()
+                }
+                .onFailure { throwable ->
+                    _state.update {
+                        it.copy(
+                            isDownloading = false,
+                            errorMessage = throwable.localizedMessage ?: "No se pudo descargar el pack."
+                        )
+                    }
+                }
         }
     }
 

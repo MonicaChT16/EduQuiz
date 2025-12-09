@@ -58,13 +58,17 @@ class FirestorePackRemoteDataSource @Inject constructor(
 ) : PackRemoteDataSource {
 
     override suspend fun fetchCurrentPackMeta(): PackMetaRemote? {
-        val snapshot = firestore.collection(PACKS_COLLECTION)
+        // Obtener todos los packs publicados y ordenar en memoria
+        // Esto evita la necesidad de un índice compuesto en Firestore
+        val snapshots = firestore.collection(PACKS_COLLECTION)
             .whereEqualTo("status", STATUS_PUBLISHED)
-            .orderBy("publishedAt", Query.Direction.DESCENDING)
-            .limit(1)
             .get()
             .await()
             .documents
+
+        // Ordenar por publishedAt descendente y tomar el más reciente
+        val snapshot = snapshots
+            .sortedByDescending { it.getLong("publishedAt") ?: 0L }
             .firstOrNull()
 
         return snapshot?.toPackMeta()
