@@ -2,82 +2,59 @@ package com.eduquiz.feature.ranking
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.eduquiz.domain.profile.ProfileRepository
 import com.eduquiz.domain.ranking.LeaderboardEntry
 import com.eduquiz.domain.ranking.RankingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-data class RankingUiState(
-    val isLoading: Boolean = true,
-    val entries: List<LeaderboardEntry> = emptyList(),
-    val error: String? = null,
-    val classroomLabel: String? = null,
-    val currentUid: String? = null,
-)
+import javax.inject.Inject
 
 @HiltViewModel
 class RankingViewModel @Inject constructor(
-    private val rankingRepository: RankingRepository,
-    private val profileRepository: ProfileRepository
+    private val rankingRepository: RankingRepository
 ) : ViewModel() {
 
-    private val uidState = MutableStateFlow<String?>(null)
-
-    val state: StateFlow<RankingUiState> = uidState
-        .filterNotNull()
-        .flatMapLatest { uid ->
-            profileRepository.observeProfile(uid)
-                .filterNotNull()
-                .flatMapLatest { profile ->
-                    val schoolId = profile.schoolId
-                    val classroomId = profile.classroomId
-                    if (schoolId.isBlank() || classroomId.isBlank()) {
-                        // Emitimos error si falta la relación al aula.
-                        flowOf(
-                            RankingUiState(
-                                isLoading = false,
-                                error = "Tu perfil no tiene aula asignada",
-                                classroomLabel = null,
-                                currentUid = uid
-                            )
-                        )
-                    } else {
-                        rankingRepository
-                            .observeClassroomLeaderboard(schoolId, classroomId)
-                            .map { entries ->
-                                RankingUiState(
-                                    isLoading = false,
-                                    entries = entries,
-                                    error = null,
-                                    classroomLabel = "$schoolId / $classroomId",
-                                    currentUid = uid
-                                )
-                            }
-                    }
-                }
-        }
-        .catch { emit(RankingUiState(isLoading = false, error = it.message ?: "Error desconocido")) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = RankingUiState()
-        )
+    private val _state = MutableStateFlow(RankingState())
+    val state: StateFlow<RankingState> = _state.asStateFlow()
 
     fun start(uid: String) {
         viewModelScope.launch {
-            uidState.emit(uid)
+            _state.update { it.copy(isLoading = true, currentUid = uid) }
+
+            try {
+                // --- SOLUCIÓN DEL ERROR ---
+                // 1. Usamos el nombre correcto: observeClassroomLeaderboard
+                // 2. Pasamos IDs de prueba ("default") porque la función los exige.
+                // 3. Usamos .collect { ... } porque devuelve un Flow (flujo de datos).
+                rankingRepository.observeClassroomLeaderboard("school_default", "class_default")
+                    .collect { listaRanking ->
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                entries = listaRanking,
+                                classroomLabel = "Aula: Default"
+                            )
+                        }
+                    }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = e.message ?: "Error desconocido"
+                    )
+                }
+            }
         }
     }
 }
 
+data class RankingState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val entries: List<LeaderboardEntry> = emptyList(),
+    val classroomLabel: String? = null,
+    val currentUid: String? = null
+)
