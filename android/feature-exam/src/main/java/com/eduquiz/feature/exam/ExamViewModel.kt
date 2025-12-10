@@ -56,6 +56,7 @@ class ExamViewModel @Inject constructor(
     private var optionsUnlockAt: Long? = null
     private var questionShownAt: Long = 0L
     private var timerJob: Job? = null
+    private var currentSubject: String? = null
 
     fun initialize(uid: String) {
         if (userId != null) return
@@ -73,7 +74,10 @@ class ExamViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isBusy = true, errorMessage = null) }
             
-            // Si se especifica una materia, cargar solo preguntas de esa materia
+            // Guardar la materia actual
+            currentSubject = subject
+            
+            // Si se especifica una materia, cargar solo preguntas de esa materia (máximo 10)
             val questions = if (subject != null) {
                 runCatching { prepareQuestions(pack.packId, subject) }.getOrElse { throwable ->
                     _state.update {
@@ -119,6 +123,7 @@ class ExamViewModel @Inject constructor(
             val attemptId = examRepository.startAttempt(
                 uid = uid,
                 packId = pack.packId,
+                subject = currentSubject,
                 startedAtLocal = startedAtLocal,
                 durationMs = duration
             )
@@ -128,6 +133,7 @@ class ExamViewModel @Inject constructor(
                 attemptId = attemptId,
                 uid = uid,
                 packId = pack.packId,
+                subject = currentSubject,
                 startedAtLocal = startedAtLocal,
                 finishedAtLocal = null,
                 durationMs = duration,
@@ -343,7 +349,10 @@ class ExamViewModel @Inject constructor(
     private suspend fun prepareQuestions(packId: String, subject: String? = null): List<ExamContent> {
         val texts = packRepository.getTextsForPack(packId).associateBy { it.textId }
         val questions = if (subject != null) {
-            packRepository.getQuestionsForPackBySubject(packId, subject).sortedBy { it.questionId }
+            // Limitar a 10 preguntas por materia para pruebas PISA
+            packRepository.getQuestionsForPackBySubject(packId, subject)
+                .sortedBy { it.questionId }
+                .take(10)
         } else {
             packRepository.getQuestionsForPack(packId).sortedBy { it.questionId }
         }
@@ -512,24 +521,41 @@ class ExamViewModel @Inject constructor(
     private suspend fun loadReviewData(attemptId: String, packId: String, answers: List<ExamAnswer>) {
         try {
             val pack = packRepository.getPackById(packId) ?: return
-            val questions = packRepository.getQuestionsForPack(packId)
+            // Obtener la materia del intento para filtrar solo las preguntas de ese examen
+            val attempt = examRepository.getAttempts(userId ?: "")
+                .find { it.attemptId == attemptId }
+            val subject = attempt?.subject
+            
+            // Solo cargar preguntas de la materia del examen (no todas las del pack)
+            val questions = if (subject != null) {
+                packRepository.getQuestionsForPackBySubject(packId, subject)
+                    .sortedBy { it.questionId }
+                    .take(10) // Limitar a 10 como en el examen
+            } else {
+                // Si no hay materia, cargar todas (compatibilidad con intentos antiguos)
+                packRepository.getQuestionsForPack(packId)
+            }
+            
             val texts = packRepository.getTextsForPack(packId)
             val textsMap = texts.associateBy { it.textId }
             val answersMap = answers.associateBy { it.questionId }
             
-            val reviewItems = questions.mapNotNull { question ->
-                val text = textsMap[question.textId] ?: return@mapNotNull null
-                val options = packRepository.getOptionsForQuestion(question.questionId)
-                val userAnswer = answersMap[question.questionId]
-                
-                QuestionReview(
-                    question = question,
-                    text = text,
-                    options = options,
-                    userAnswer = userAnswer,
-                    correctOptionId = question.correctOptionId
-                )
-            }
+            // Solo incluir preguntas que tienen respuesta (del examen dado)
+            val reviewItems = questions
+                .filter { question -> answersMap.containsKey(question.questionId) }
+                .mapNotNull { question ->
+                    val text = textsMap[question.textId] ?: return@mapNotNull null
+                    val options = packRepository.getOptionsForQuestion(question.questionId)
+                    val userAnswer = answersMap[question.questionId]
+                    
+                    QuestionReview(
+                        question = question,
+                        text = text,
+                        options = options,
+                        userAnswer = userAnswer,
+                        correctOptionId = question.correctOptionId
+                    )
+                }
             
             _reviewData.value = reviewItems
         } catch (e: Exception) {

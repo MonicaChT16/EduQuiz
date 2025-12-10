@@ -188,6 +188,7 @@ data class ExamAttemptEntity(
     @PrimaryKey val attemptId: String,
     val uid: String,
     val packId: String,
+    val subject: String?,
     val startedAtLocal: Long,
     val finishedAtLocal: Long?,
     val durationMs: Long,
@@ -442,7 +443,7 @@ interface ExamDao {
         ExamAttemptEntity::class,
         ExamAnswerEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -459,6 +460,10 @@ abstract class AppDatabase : RoomDatabase() {
             Migration(1, 2) { database ->
                 // Agregar campo XP a user_profile_entity
                 database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN xp INTEGER NOT NULL DEFAULT 0")
+            },
+            Migration(2, 3) { database ->
+                // Agregar campo subject a exam_attempt_entity (nullable para compatibilidad con intentos antiguos)
+                database.execSQL("ALTER TABLE exam_attempt_entity ADD COLUMN subject TEXT")
             }
         )
     }

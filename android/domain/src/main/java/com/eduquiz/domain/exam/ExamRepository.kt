@@ -5,11 +5,13 @@ import kotlinx.coroutines.flow.Flow
 interface ExamRepository {
     /**
      * Crea un nuevo intento de examen y lo guarda en Room con status IN_PROGRESS.
+     * @param subject materia del examen (MATEMATICA, COMPRENSION_LECTORA, CIENCIAS)
      * @return attemptId generado
      */
     suspend fun startAttempt(
         uid: String,
         packId: String,
+        subject: String?,
         startedAtLocal: Long,
         durationMs: Long
     ): String

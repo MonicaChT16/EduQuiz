@@ -179,6 +179,9 @@ private class FakePackRepository : PackRepository {
 
     override suspend fun getQuestionsForPack(packId: String): List<Question> = listOf(question)
 
+    override suspend fun getQuestionsForPackBySubject(packId: String, subject: String): List<Question> =
+        if (text.subject == subject) listOf(question) else emptyList()
+
     override suspend fun getOptionsForQuestion(questionId: String): List<Option> = options
 }
 
@@ -186,6 +189,33 @@ private class FakeExamRepository : ExamRepository {
     val attempts = mutableListOf<ExamAttempt>()
     val answers = mutableListOf<ExamAnswer>()
     var finishedStatus: String? = null
+    private var attemptCounter = 0
+
+    override suspend fun startAttempt(
+        uid: String,
+        packId: String,
+        subject: String?,
+        startedAtLocal: Long,
+        durationMs: Long
+    ): String {
+        val attemptId = "attempt-${++attemptCounter}"
+        val attempt = ExamAttempt(
+            attemptId = attemptId,
+            uid = uid,
+            packId = packId,
+            subject = subject,
+            startedAtLocal = startedAtLocal,
+            finishedAtLocal = null,
+            durationMs = durationMs,
+            status = ExamStatus.IN_PROGRESS,
+            scoreRaw = 0,
+            scoreValidated = null,
+            origin = "OFFLINE",
+            syncState = "PENDING"
+        )
+        attempts.add(attempt)
+        return attemptId
+    }
 
     override suspend fun createAttempt(attempt: ExamAttempt) {
         attempts.add(attempt)
@@ -199,12 +229,19 @@ private class FakeExamRepository : ExamRepository {
     override suspend fun finishAttempt(
         attemptId: String,
         finishedAtLocal: Long,
-        status: String,
-        scoreRaw: Int,
-        scoreValidated: Int?,
-        syncState: String
+        status: String
     ) {
         finishedStatus = status
+        val attempt = attempts.find { it.attemptId == attemptId }
+        if (attempt != null) {
+            val updatedAttempt = attempt.copy(
+                finishedAtLocal = finishedAtLocal,
+                status = status,
+                scoreRaw = answers.count { it.attemptId == attemptId && it.isCorrect }
+            )
+            attempts.remove(attempt)
+            attempts.add(updatedAttempt)
+        }
     }
 
     override suspend fun getAttempts(uid: String): List<ExamAttempt> =

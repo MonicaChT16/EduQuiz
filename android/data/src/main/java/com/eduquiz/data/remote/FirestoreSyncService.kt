@@ -48,6 +48,7 @@ class FirestoreSyncService @Inject constructor(
                 "attemptId" to attempt.attemptId,
                 "uid" to attempt.uid,
                 "packId" to attempt.packId,
+                "subject" to (attempt.subject ?: ""),
                 "startedAtLocal" to attempt.startedAtLocal,
                 "finishedAtLocal" to attempt.finishedAtLocal,
                 "durationMs" to attempt.durationMs,

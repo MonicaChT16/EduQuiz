@@ -4,6 +4,7 @@ data class ExamAttempt(
     val attemptId: String,
     val uid: String,
     val packId: String,
+    val subject: String?,
     val startedAtLocal: Long,
     val finishedAtLocal: Long?,
     val durationMs: Long,

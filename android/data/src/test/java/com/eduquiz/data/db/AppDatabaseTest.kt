@@ -109,6 +109,7 @@ class AppDatabaseTest {
             attemptId = "attempt-1",
             uid = "uid-1",
             packId = pack.packId,
+            subject = null,
             startedAtLocal = 1L,
             finishedAtLocal = null,
             durationMs = 1_200_000L,
