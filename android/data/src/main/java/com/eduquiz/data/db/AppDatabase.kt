@@ -227,6 +227,12 @@ data class ExamAnswerEntity(
     val timeSpentMs: Long,
 )
 
+@Entity(tableName = "onboarding_preferences_entity")
+data class OnboardingPreferencesEntity(
+    @PrimaryKey val id: Int = 1,
+    val hasCompletedOnboarding: Boolean = false,
+)
+
 @Dao
 interface PackDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -443,6 +449,18 @@ interface ExamDao {
     suspend fun updateSyncState(attemptId: String, syncState: String)
 }
 
+@Dao
+interface OnboardingDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertOnboardingPreferences(entity: OnboardingPreferencesEntity)
+
+    @Query("SELECT * FROM onboarding_preferences_entity WHERE id = 1 LIMIT 1")
+    fun observeOnboardingPreferences(): Flow<OnboardingPreferencesEntity?>
+
+    @Query("SELECT * FROM onboarding_preferences_entity WHERE id = 1 LIMIT 1")
+    suspend fun getOnboardingPreferences(): OnboardingPreferencesEntity?
+}
+
 @Database(
     entities = [
         PackEntity::class,
@@ -455,6 +473,7 @@ interface ExamDao {
         DailyStreakEntity::class,
         ExamAttemptEntity::class,
         ExamAnswerEntity::class,
+        OnboardingPreferencesEntity::class,
     ],
     version = 4,
     exportSchema = true
@@ -466,6 +485,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun storeDao(): StoreDao
     abstract fun achievementsDao(): AchievementsDao
     abstract fun examDao(): ExamDao
+    abstract fun onboardingDao(): OnboardingDao
 
     companion object {
         const val NAME = "eduquiz.db"

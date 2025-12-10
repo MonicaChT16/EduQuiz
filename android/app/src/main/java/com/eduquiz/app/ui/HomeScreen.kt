@@ -1,6 +1,8 @@
 package com.eduquiz.app.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,11 +15,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -30,16 +36,29 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import android.os.Build
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.ImageLoader
+import coil.compose.AsyncImage // Importación de Coil
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import com.eduquiz.app.R // Importación para acceder a los recursos
 import com.eduquiz.app.navigation.RootDestination
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 import com.eduquiz.feature.auth.model.AuthState
@@ -50,7 +69,29 @@ fun HomeScreen(
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.state.collectAsStateWithLifecycle()
-    
+    val context = LocalContext.current
+    val imageLoader = ImageLoader.Builder(context)
+        .components {
+            if (Build.VERSION.SDK_INT >= 28) {
+                add(ImageDecoderDecoder.Factory())
+            } else {
+                add(GifDecoder.Factory())
+            }
+        }
+        .build()
+
+    var showSubjectDialog by remember { mutableStateOf(false) }
+    var selectedSubject by remember { mutableStateOf<String?>(null) }
+
+    if (showSubjectDialog) {
+        SubjectSelectionDialog(
+            selectedSubject = selectedSubject,
+            onSubjectSelected = { selectedSubject = it },
+            onStart = { showSubjectDialog = false },
+            onDismiss = { showSubjectDialog = false }
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -107,30 +148,16 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Placeholder para el GIF del robot - será reemplazado con el GIF real
-                Surface(
+                // GIF del robot
+                AsyncImage(
+                    model = R.drawable.robot,
+                    contentDescription = "Robot PISA animado",
+                    imageLoader = imageLoader, // Usar el ImageLoader personalizado
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(280.dp)
-                        .clip(RoundedCornerShape(24.dp)),
-                    color = Color.White,
-                    shadowElevation = 8.dp
-                ) {
-                    // Aquí irá el GIF del robot - por ahora mostramos un placeholder
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0xFFF0F0F0)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Robot PISA",
-                            modifier = Modifier.size(120.dp),
-                            tint = Color.Gray
-                        )
-                    }
-                }
+                        .clip(RoundedCornerShape(24.dp))
+                )
 
                 // Botón Tienda - fijo en la esquina superior derecha
                 Button(
@@ -204,7 +231,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Button(
-                        onClick = { onNavigate(RootDestination.Exam) },
+                        onClick = { showSubjectDialog = true },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
@@ -228,6 +255,138 @@ fun HomeScreen(
 }
 
 @Composable
+private fun SubjectSelectionDialog(
+    selectedSubject: String?,
+    onSubjectSelected: (String) -> Unit,
+    onStart: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val options = listOf(
+        SubjectOption("Matemáticas", Icons.Default.School, Color(0xFF4CAF50)),
+        SubjectOption("Comprensión lectora", Icons.Default.MenuBook, Color(0xFF3F51B5)),
+        SubjectOption("Ciencias", Icons.Default.Science, Color(0xFF009688))
+    )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = Color.White,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Selecciona la siguiente materia:",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1E3050)
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    options.forEach { option ->
+                        SubjectOptionCard(
+                            option = option,
+                            isSelected = selectedSubject == option.title,
+                            onClick = { onSubjectSelected(option.title) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Button(
+                    onClick = onStart,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    enabled = selectedSubject != null,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00CC44))
+                ) {
+                    Text(
+                        text = "Iniciar intento",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SubjectOptionCard(
+    option: SubjectOption,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val background = if (isSelected) Color(0xFF1E90FF).copy(alpha = 0.12f) else Color(0xFFF6F8FF)
+    val borderColor = if (isSelected) Color(0xFF1E90FF) else Color.Transparent
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(92.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = background,
+        border = BorderStroke(2.dp, borderColor),
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(64.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = option.color.copy(alpha = 0.15f)
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(
+                        imageVector = option.icon,
+                        contentDescription = option.title,
+                        tint = option.color,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            Column(
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = option.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A)
+                )
+                Text(
+                    text = "Explora desafíos y preguntas clave",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF5C6476)
+                )
+            }
+        }
+    }
+}
+
+private data class SubjectOption(
+    val title: String,
+    val icon: ImageVector,
+    val color: Color
+)
+
+@Composable
 fun HomeHeader(
     authState: AuthState,
     onNotificationClick: () -> Unit,
@@ -249,7 +408,7 @@ fun HomeHeader(
         ) {
             Surface(
                 modifier = Modifier.size(48.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = CircleShape,
                 color = Color.White,
                 shadowElevation = 4.dp
             ) {
@@ -259,12 +418,26 @@ fun HomeHeader(
                         .background(Color(0xFFE0E0E0)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Perfil",
-                        modifier = Modifier.size(24.dp),
-                        tint = Color.Gray
-                    )
+                    val photoUrl = profile?.photoUrl
+                    if (photoUrl != null) {
+                        // Mostrar la imagen del perfil si existe
+                        AsyncImage(
+                            model = photoUrl,
+                            contentDescription = "Foto de perfil del usuario",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        // Mostrar icono por defecto si no hay foto
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Perfil",
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Gray
+                        )
+                    }
                 }
             }
 
