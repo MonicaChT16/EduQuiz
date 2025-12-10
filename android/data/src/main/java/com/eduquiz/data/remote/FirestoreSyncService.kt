@@ -161,24 +161,43 @@ class FirestoreSyncService @Inject constructor(
      */
     suspend fun syncUserProfile(profile: UserProfileEntity): Boolean {
         return try {
+            android.util.Log.d("FirestoreSyncService", "Starting sync for user profile: ${profile.uid}")
             val profileRef = firestore.collection("users").document(profile.uid)
 
             // Leer el perfil remoto para comparar timestamps
+            android.util.Log.d("FirestoreSyncService", "Reading remote profile for ${profile.uid}")
             val remoteSnapshot = profileRef.get().await()
             val remoteUpdatedAt = if (remoteSnapshot.exists()) {
                 remoteSnapshot.getLong("updatedAtLocal") ?: 0L
             } else {
                 0L // Si no existe, el local es más reciente
             }
+            android.util.Log.d("FirestoreSyncService", "Remote updatedAt: $remoteUpdatedAt, Local updatedAt: ${profile.updatedAtLocal}")
 
             // Solo escribir si el local es más reciente o igual (última escritura gana)
             if (profile.updatedAtLocal >= remoteUpdatedAt) {
-                // Calcular estadísticas de ranking
-                val stats = calculateRankingStats(profile.uid)
+                android.util.Log.d("FirestoreSyncService", "Local is newer or equal, proceeding with sync")
                 
-                // Obtener email del usuario actual de Firebase Auth
-                val currentUser = firebaseAuth.currentUser
-                val userEmail = currentUser?.email ?: ""
+                // Calcular estadísticas de ranking
+                android.util.Log.d("FirestoreSyncService", "Calculating ranking stats for ${profile.uid}")
+                val stats = calculateRankingStats(profile.uid)
+                android.util.Log.d("FirestoreSyncService", "Stats calculated: accuracy=${stats.accuracy}, attempts=${stats.totalAttempts}, correct=${stats.totalCorrectAnswers}, questions=${stats.totalQuestions}")
+                
+                // Obtener email: primero del documento remoto si existe, luego del usuario actual si coincide
+                val userEmail = if (remoteSnapshot.exists()) {
+                    remoteSnapshot.getString("email")?.takeIf { it.isNotBlank() }
+                } else {
+                    null
+                } ?: run {
+                    // Si no existe en remoto, intentar obtener del usuario actual si coincide
+                    val currentUser = firebaseAuth.currentUser
+                    if (currentUser?.uid == profile.uid) {
+                        currentUser.email ?: ""
+                    } else {
+                        "" // Si no coincide, dejar vacío
+                    }
+                }
+                android.util.Log.d("FirestoreSyncService", "User email: ${if (userEmail.isBlank()) "NOT AVAILABLE" else userEmail}")
                 
                 // schoolCode: usar schoolId como código de colegio (el usuario lo ingresa manualmente)
                 // Si schoolId está vacío, schoolCode también estará vacío
@@ -215,8 +234,9 @@ class FirestoreSyncService @Inject constructor(
                     "lastSyncedAt" to System.currentTimeMillis()
                 )
                 
+                android.util.Log.d("FirestoreSyncService", "Writing profile data to Firestore: ${profileData.keys.joinToString()}")
                 profileRef.set(profileData, SetOptions.merge()).await()
-                android.util.Log.d("FirestoreSyncService", "Successfully synced user profile ${profile.uid} to Firestore")
+                android.util.Log.d("FirestoreSyncService", "✅ Successfully synced user profile ${profile.uid} to Firestore")
                 true
             } else {
                 // El remoto es más reciente, no sobrescribir
@@ -225,7 +245,10 @@ class FirestoreSyncService @Inject constructor(
                 true
             }
         } catch (e: Exception) {
-            android.util.Log.e("FirestoreSyncService", "Error syncing user profile ${profile.uid}", e)
+            android.util.Log.e("FirestoreSyncService", "❌ Error syncing user profile ${profile.uid}", e)
+            android.util.Log.e("FirestoreSyncService", "Error message: ${e.message}")
+            android.util.Log.e("FirestoreSyncService", "Error cause: ${e.cause?.message}")
+            e.printStackTrace()
             false
         }
     }

@@ -539,3 +539,8 @@ android/data/schemas/com.eduquiz.data.db.AppDatabase/
 **Última actualización**: Base de datos versión 2
 **Estado**: ✅ Completamente funcional
 
+
+
+
+
+
