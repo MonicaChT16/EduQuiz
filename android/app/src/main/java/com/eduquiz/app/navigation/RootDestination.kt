@@ -9,7 +9,8 @@ enum class RootDestination(val route: String, val title: String) {
     Store("store", "Tienda"),
     Ranking("ranking", "Tabla de clasificación"),
     Settings("settings", "Ajustes"),
-    Notifications("notifications", "Notificaciones");
+    Notifications("notifications", "Notificaciones"),
+    About("about", "Acerca de EduQuiz");
 
     companion object {
         val allDestinations = values().toList()
