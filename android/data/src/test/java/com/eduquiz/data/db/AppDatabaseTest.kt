@@ -77,7 +77,9 @@ class AppDatabaseTest {
             photoUrl = null,
             schoolId = "school-1",
             classroomId = "class-1",
+            ugelCode = null,
             coins = 0,
+            xp = 0L,
             selectedCosmeticId = "default",
             updatedAtLocal = 1L,
             syncState = SyncState.PENDING

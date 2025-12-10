@@ -200,9 +200,9 @@ class FirestoreSyncService @Inject constructor(
                 }
                 android.util.Log.d("FirestoreSyncService", "User email: ${if (userEmail.isBlank()) "NOT AVAILABLE" else userEmail}")
                 
-                // schoolCode: usar schoolId como código de colegio (el usuario lo ingresa manualmente)
-                // Si schoolId está vacío, schoolCode también estará vacío
-                val schoolCode = profile.schoolId.takeIf { it.isNotBlank() } ?: ""
+                // schoolCode: usar ugelCode como código de colegio/UGEL (ingresado manualmente por el usuario)
+                // Si ugelCode está vacío o null, schoolCode también estará vacío
+                val schoolCode = profile.ugelCode?.takeIf { it.isNotBlank() } ?: ""
                 
                 val profileData = mapOf(
                     // Datos básicos del usuario
@@ -211,8 +211,9 @@ class FirestoreSyncService @Inject constructor(
                     "email" to userEmail,
                     "photoUrl" to profile.photoUrl,
                     
-                    // Datos de colegio
-                    "schoolCode" to schoolCode,  // Código de colegio/UGEL (ingresado manualmente)
+                    // Datos de colegio/UGEL
+                    "schoolCode" to schoolCode,  // Código de colegio/UGEL (ingresado manualmente por el usuario)
+                    "ugelCode" to profile.ugelCode,  // Guardar también el código UGEL original
                     "schoolId" to profile.schoolId,
                     "classroomId" to profile.classroomId,
                     
@@ -241,7 +242,9 @@ class FirestoreSyncService @Inject constructor(
                 true
             } else {
                 // El remoto es más reciente, no sobrescribir
+                // El perfil local se actualizará automáticamente cuando se llame a fetchProfileFromFirestore
                 android.util.Log.d("FirestoreSyncService", "Remote profile is newer (remote: $remoteUpdatedAt, local: ${profile.updatedAtLocal}), skipping sync for ${profile.uid}")
+                android.util.Log.d("FirestoreSyncService", "Note: Use fetchProfileFromFirestore() to update local profile from remote")
                 // Aún así marcamos como SYNCED porque el remoto ya tiene la versión más reciente
                 true
             }

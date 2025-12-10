@@ -158,7 +158,9 @@ class StoreRepositoryTest {
                 photoUrl = null,
                 schoolId = null,
                 classroomId = null,
+                ugelCode = null,
                 coins = 0,
+                xp = 0L,
                 selectedCosmeticId = null,
                 updatedAtLocal = System.currentTimeMillis(),
                 syncState = SyncState.SYNCED

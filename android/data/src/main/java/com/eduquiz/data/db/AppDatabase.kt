@@ -101,6 +101,7 @@ data class UserProfileEntity(
     val photoUrl: String?,
     val schoolId: String,
     val classroomId: String,
+    val ugelCode: String? = null, // Código UGEL ingresado por el usuario
     val coins: Int,
     val xp: Long = 0L, // Puntos de experiencia (acumulativo, nunca disminuye)
     val selectedCosmeticId: String?, // Nullable porque puede no tener cosmético equipado
@@ -337,6 +338,15 @@ interface ProfileDao {
     )
     suspend fun updatePhotoUrl(uid: String, photoUrl: String?, updatedAtLocal: Long, syncState: String)
 
+    @Query(
+        """
+        UPDATE user_profile_entity 
+        SET ugelCode = :ugelCode, updatedAtLocal = :updatedAtLocal, syncState = :syncState 
+        WHERE uid = :uid
+        """
+    )
+    suspend fun updateUgelCode(uid: String, ugelCode: String?, updatedAtLocal: Long, syncState: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDailyStreak(entity: DailyStreakEntity)
 
@@ -443,7 +453,7 @@ interface ExamDao {
         ExamAttemptEntity::class,
         ExamAnswerEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -464,6 +474,10 @@ abstract class AppDatabase : RoomDatabase() {
             Migration(2, 3) { database ->
                 // Agregar campo subject a exam_attempt_entity (nullable para compatibilidad con intentos antiguos)
                 database.execSQL("ALTER TABLE exam_attempt_entity ADD COLUMN subject TEXT")
+            },
+            Migration(3, 4) { database ->
+                // Agregar campo ugelCode a user_profile_entity (nullable para compatibilidad con perfiles antiguos)
+                database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN ugelCode TEXT")
             }
         )
     }

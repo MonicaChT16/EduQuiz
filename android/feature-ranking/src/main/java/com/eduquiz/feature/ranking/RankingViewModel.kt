@@ -7,6 +7,8 @@ import com.eduquiz.domain.exam.ExamStatus
 import com.eduquiz.domain.ranking.LeaderboardEntry
 import com.eduquiz.domain.ranking.RankingRepository
 import com.eduquiz.domain.profile.ProfileRepository
+import com.eduquiz.domain.profile.SyncState
+import com.eduquiz.domain.sync.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +35,8 @@ data class UserRankingStats(
 class RankingViewModel @Inject constructor(
     private val rankingRepository: RankingRepository,
     private val profileRepository: ProfileRepository,
-    private val examRepository: ExamRepository
+    private val examRepository: ExamRepository,
+    private val syncRepository: SyncRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RankingState())
@@ -45,8 +48,53 @@ class RankingViewModel @Inject constructor(
         _state.update { it.copy(currentUid = uid) }
         // Cargar perfil del usuario y calcular stats
         loadUserStats(uid)
+        // Observar cambios en el código UGEL del usuario (persistente)
+        observeUserUgelCode(uid)
         // Por defecto mostrar vista nacional
         loadNationalLeaderboard()
+    }
+    
+    /**
+     * Observa el código UGEL del usuario y lo mantiene actualizado en el estado.
+     * Esto asegura que el código persista incluso cuando el usuario cambia de pestaña.
+     */
+    private fun observeUserUgelCode(uid: String) {
+        viewModelScope.launch {
+            try {
+                profileRepository.observeProfile(uid).collect { profile ->
+                    val ugelCode = profile?.ugelCode?.takeIf { it.isNotBlank() } ?: ""
+                    val currentUserCode = _state.value.userUgelCode
+                    
+                    // Solo actualizar si el código cambió
+                    if (ugelCode != currentUserCode) {
+                        _state.update { 
+                            it.copy(
+                                userUgelCode = ugelCode, // Guardar código del usuario (persistente)
+                                // Si estamos en pestaña SCHOOL y no hay código de búsqueda, usar el del usuario
+                                schoolCode = if (it.currentTab == RankingTab.SCHOOL && it.schoolCode.isBlank()) {
+                                    ugelCode
+                                } else {
+                                    it.schoolCode // Mantener el código de búsqueda si existe
+                                },
+                                // Si tiene código UGEL y estamos en NATIONAL, cambiar a SCHOOL
+                                currentTab = if (ugelCode.isNotBlank() && it.currentTab == RankingTab.NATIONAL) {
+                                    RankingTab.SCHOOL
+                                } else {
+                                    it.currentTab
+                                }
+                            ) 
+                        }
+                        
+                        // Si tiene código UGEL y estamos en pestaña SCHOOL, cargar su ranking
+                        if (ugelCode.isNotBlank() && _state.value.currentTab == RankingTab.SCHOOL) {
+                            loadSchoolLeaderboard(ugelCode)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("RankingViewModel", "Error observing user UGEL code", e)
+            }
+        }
     }
 
     private fun loadUserStats(uid: String) {
@@ -102,10 +150,21 @@ class RankingViewModel @Inject constructor(
         if (_state.value.currentTab == tab) return
         
         currentJob?.cancel()
+        
+        // Mantener el código UGEL del usuario siempre visible
+        val userCode = _state.value.userUgelCode
+        val codeToUse = if (tab == RankingTab.SCHOOL && userCode.isNotBlank()) {
+            userCode // Usar el código del usuario si está en pestaña SCHOOL
+        } else if (tab == RankingTab.SCHOOL) {
+            _state.value.schoolCode // Mantener el código de búsqueda si existe
+        } else {
+            "" // En NATIONAL no se necesita código
+        }
+        
         _state.update { 
             it.copy(
                 currentTab = tab,
-                schoolCode = if (tab == RankingTab.SCHOOL) it.schoolCode else "",
+                schoolCode = codeToUse, // Mantener el código visible
                 entries = emptyList(),
                 isLoading = true,
                 error = null
@@ -114,8 +173,9 @@ class RankingViewModel @Inject constructor(
         
         when (tab) {
             RankingTab.SCHOOL -> {
-                if (_state.value.schoolCode.isNotBlank()) {
-                    loadSchoolLeaderboard(_state.value.schoolCode)
+                // Si hay código (del usuario o de búsqueda), cargar ranking
+                if (codeToUse.isNotBlank()) {
+                    loadSchoolLeaderboard(codeToUse)
                 } else {
                     _state.update { it.copy(isLoading = false) }
                 }
@@ -125,7 +185,9 @@ class RankingViewModel @Inject constructor(
     }
 
     fun searchSchool(schoolCode: String) {
-        if (schoolCode.isBlank()) {
+        val trimmedCode = schoolCode.trim()
+        
+        if (trimmedCode.isBlank()) {
             _state.update { 
                 it.copy(
                     schoolCode = "",
@@ -136,15 +198,66 @@ class RankingViewModel @Inject constructor(
             return
         }
 
+        // Validar que el código tenga exactamente 7 cifras
+        if (trimmedCode.length != 7 || !trimmedCode.all { it.isDigit() }) {
+            _state.update { 
+                it.copy(
+                    error = "El código UGEL debe tener exactamente 7 dígitos numéricos",
+                    isLoading = false
+                ) 
+            }
+            return
+        }
+
         currentJob?.cancel()
         _state.update { 
             it.copy(
-                schoolCode = schoolCode,
+                schoolCode = trimmedCode,
                 isLoading = true,
                 error = null
             ) 
         }
-        loadSchoolLeaderboard(schoolCode)
+        
+        // Guardar el código UGEL en el perfil del usuario (solo si es diferente al actual)
+        val currentUid = _state.value.currentUid
+        if (currentUid != null) {
+            viewModelScope.launch {
+                try {
+                    val currentProfile = profileRepository.observeProfile(currentUid).firstOrNull()
+                    // Solo actualizar si el código es diferente al actual
+                    if (currentProfile?.ugelCode != trimmedCode) {
+                        val now = System.currentTimeMillis()
+                        profileRepository.updateUgelCode(
+                            uid = currentUid,
+                            ugelCode = trimmedCode,
+                            updatedAtLocal = now,
+                            syncState = SyncState.PENDING
+                        )
+                        // Encolar sincronización inmediata para que se vea en Firestore
+                        syncRepository.enqueueSyncNow()
+                        android.util.Log.d("RankingViewModel", "UGEL code saved: $trimmedCode")
+                        
+                        // Actualizar el código del usuario en el estado (persistente)
+                        _state.update { 
+                            it.copy(
+                                userUgelCode = trimmedCode, // Actualizar código del usuario
+                                schoolCode = trimmedCode // Actualizar código de búsqueda
+                            ) 
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("RankingViewModel", "Error saving UGEL code", e)
+                    _state.update { 
+                        it.copy(
+                            error = "Error al guardar el código UGEL: ${e.message}",
+                            isLoading = false
+                        ) 
+                    }
+                }
+            }
+        }
+        
+        loadSchoolLeaderboard(trimmedCode)
     }
 
     private fun loadSchoolLeaderboard(schoolCode: String) {
@@ -256,7 +369,8 @@ data class RankingState(
     val error: String? = null,
     val entries: List<LeaderboardEntry> = emptyList(),
     val currentTab: RankingTab = RankingTab.NATIONAL,
-    val schoolCode: String = "",
+    val schoolCode: String = "", // Código actual para búsqueda/filtro
+    val userUgelCode: String = "", // Código UGEL del usuario (siempre persistente)
     val currentUid: String? = null,
     val userStats: UserRankingStats? = null,
     val isUserVisible: Boolean = false,

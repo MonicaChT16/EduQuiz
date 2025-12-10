@@ -90,12 +90,14 @@ fun RankingFeature(
                 )
 
                 // Campo de búsqueda (solo para pestaña Colegio)
+                // Mostrar siempre el código UGEL del usuario si existe, o permitir ingresar uno nuevo
                 if (state.currentTab == RankingTab.SCHOOL) {
                     SchoolCodeSearch(
-                        schoolCode = state.schoolCode,
+                        schoolCode = state.userUgelCode.ifBlank { state.schoolCode },
                         onSearch = { code ->
                             viewModel.searchSchool(code)
-                        }
+                        },
+                        isUserCode = state.userUgelCode.isNotBlank()
                     )
                 }
 
@@ -161,25 +163,85 @@ private fun TabSelector(
 @Composable
 private fun SchoolCodeSearch(
     schoolCode: String,
-    onSearch: (String) -> Unit
+    onSearch: (String) -> Unit,
+    isUserCode: Boolean = false
 ) {
-    var inputText by remember { mutableStateOf(schoolCode) }
+    var inputText by remember(schoolCode) { mutableStateOf(schoolCode) }
+    
+    // Actualizar el texto cuando cambie el código guardado
+    LaunchedEffect(schoolCode) {
+        if (inputText != schoolCode) {
+            inputText = schoolCode
+        }
+    }
 
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        OutlinedTextField(
-            value = inputText,
-            onValueChange = { inputText = it },
-            label = { Text("Código de colegio (UGEL)") },
-            modifier = Modifier.weight(1f),
-            singleLine = true,
-            placeholder = { Text("Ej: 12345") }
-        )
-        TextButton(onClick = { onSearch(inputText.trim()) }) {
-            Text("Unirse/Ver")
+        // Mostrar mensaje si es el código del usuario
+        if (isUserCode && schoolCode.isNotBlank()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    text = "Tu código UGEL: $schoolCode - Solo verás estudiantes con este código",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(12.dp),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = inputText,
+                onValueChange = { newValue ->
+                    // Solo permitir números y máximo 7 caracteres
+                    if (newValue.all { it.isDigit() } && newValue.length <= 7) {
+                        inputText = newValue
+                    }
+                },
+                label = { Text("Código de colegio (UGEL)") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                placeholder = { Text("Ej: 1234567") },
+                enabled = !isUserCode, // Si es código del usuario, permitir editar para cambiarlo
+                supportingText = {
+                    when {
+                        isUserCode && schoolCode.isNotBlank() -> Text(
+                            "Puedes cambiar tu código si ingresas uno nuevo",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        schoolCode.isNotBlank() -> Text(
+                            "Código actual: $schoolCode",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        inputText.length < 7 && inputText.isNotEmpty() -> Text(
+                            "Faltan ${7 - inputText.length} dígitos",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        else -> Text(
+                            "Ingresa 7 dígitos numéricos",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                },
+                isError = inputText.isNotEmpty() && (inputText.length != 7 || !inputText.all { it.isDigit() })
+            )
+            TextButton(
+                onClick = { onSearch(inputText.trim()) },
+                enabled = inputText.trim().length == 7 && inputText.trim().all { it.isDigit() }
+            ) {
+                Text(if (isUserCode && inputText.trim() == schoolCode) "Cambiar" else "Unirse/Ver")
+            }
         }
     }
 }
