@@ -33,10 +33,12 @@ import com.eduquiz.app.ui.HomeScreen
 import com.eduquiz.app.ui.NotificationsScreen
 import com.eduquiz.app.ui.SettingsScreen
 import com.eduquiz.app.ui.theme.EduQuizTheme
+import com.eduquiz.data.repository.OnboardingRepository
 import com.eduquiz.feature.auth.model.AuthUser
 import com.eduquiz.feature.auth.model.AuthState
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 import com.eduquiz.feature.auth.ui.LoginRoute
+import com.eduquiz.feature.auth.ui.OnboardingRoute
 import com.eduquiz.feature.exam.ExamFeature
 import com.eduquiz.feature.profile.ProfileFeature
 import com.eduquiz.feature.pack.PackFeature
@@ -44,7 +46,9 @@ import com.eduquiz.feature.ranking.RankingFeature
 import com.eduquiz.feature.store.StoreFeature
 
 @Composable
-fun EduQuizNavHost() {
+fun EduQuizNavHost(
+    onboardingRepository: OnboardingRepository
+) {
     EduQuizTheme {
         val authViewModel: AuthViewModel = hiltViewModel()
         val authState by authViewModel.state.collectAsStateWithLifecycle()
@@ -60,10 +64,24 @@ fun EduQuizNavHost() {
                         onLogout = { authViewModel.logout() }
                     )
                 }
-                else -> LoginRoute(
-                    modifier = Modifier.fillMaxSize(),
-                    viewModel = authViewModel
-                )
+                else -> {
+                    // Check if onboarding has been completed
+                    val hasCompletedOnboarding by onboardingRepository.hasCompletedOnboarding.collectAsStateWithLifecycle(initialValue = false)
+                    
+                    if (hasCompletedOnboarding) {
+                        LoginRoute(
+                            modifier = Modifier.fillMaxSize(),
+                            viewModel = authViewModel
+                        )
+                    } else {
+                        OnboardingRoute(
+                            modifier = Modifier.fillMaxSize(),
+                            onNavigateToLogin = {
+                                // After onboarding, user will see login screen on next auth state change
+                            }
+                        )
+                    }
+                }
             }
         }
     }

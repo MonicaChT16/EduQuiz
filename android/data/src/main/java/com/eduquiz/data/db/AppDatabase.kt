@@ -225,6 +225,12 @@ data class ExamAnswerEntity(
     val timeSpentMs: Long,
 )
 
+@Entity(tableName = "onboarding_preferences_entity")
+data class OnboardingPreferencesEntity(
+    @PrimaryKey val id: Int = 1,
+    val hasCompletedOnboarding: Boolean = false,
+)
+
 @Dao
 interface PackDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -422,6 +428,18 @@ interface ExamDao {
     suspend fun updateSyncState(attemptId: String, syncState: String)
 }
 
+@Dao
+interface OnboardingDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertOnboardingPreferences(entity: OnboardingPreferencesEntity)
+
+    @Query("SELECT * FROM onboarding_preferences_entity WHERE id = 1 LIMIT 1")
+    fun observeOnboardingPreferences(): Flow<OnboardingPreferencesEntity?>
+
+    @Query("SELECT * FROM onboarding_preferences_entity WHERE id = 1 LIMIT 1")
+    suspend fun getOnboardingPreferences(): OnboardingPreferencesEntity?
+}
+
 @Database(
     entities = [
         PackEntity::class,
@@ -434,8 +452,9 @@ interface ExamDao {
         DailyStreakEntity::class,
         ExamAttemptEntity::class,
         ExamAnswerEntity::class,
+        OnboardingPreferencesEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -445,6 +464,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun storeDao(): StoreDao
     abstract fun achievementsDao(): AchievementsDao
     abstract fun examDao(): ExamDao
+    abstract fun onboardingDao(): OnboardingDao
 
     companion object {
         const val NAME = "eduquiz.db"
@@ -452,6 +472,17 @@ abstract class AppDatabase : RoomDatabase() {
             Migration(1, 2) { database ->
                 // Agregar campo XP a user_profile_entity
                 database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN xp INTEGER NOT NULL DEFAULT 0")
+            },
+            Migration(2, 3) { database ->
+                // Crear tabla de onboarding preferences
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS onboarding_preferences_entity (
+                        id INTEGER PRIMARY KEY NOT NULL DEFAULT 1,
+                        hasCompletedOnboarding INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
             }
         )
     }
