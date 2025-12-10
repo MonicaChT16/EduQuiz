@@ -355,6 +355,9 @@ interface ProfileDao {
 
     @Query("SELECT * FROM user_profile_entity WHERE syncState = :syncState")
     suspend fun getProfilesBySyncState(syncState: String): List<UserProfileEntity>
+    
+    @Query("SELECT * FROM user_profile_entity")
+    suspend fun getAllProfiles(): List<UserProfileEntity>
 
     @Query(
         """

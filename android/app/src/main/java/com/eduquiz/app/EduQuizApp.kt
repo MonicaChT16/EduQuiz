@@ -44,7 +44,9 @@ class EduQuizApp : Application(), Configuration.Provider {
             syncRepository.schedulePackUpdate()
             // Verificar inmediatamente si hay un pack nuevo disponible
             syncRepository.checkPackUpdateNow()
-            Log.d("EduQuizApp", "Workers scheduled: periodic sync and pack update")
+            // Sincronizar todos los usuarios automáticamente al iniciar la app
+            syncRepository.enqueueSyncAllUsers()
+            Log.d("EduQuizApp", "Workers scheduled: periodic sync, pack update, and sync all users")
         } catch (e: Exception) {
             Log.e("EduQuizApp", "Error scheduling workers", e)
         }

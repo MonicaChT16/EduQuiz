@@ -244,25 +244,48 @@ class ExamViewModel @Inject constructor(
 
     private suspend fun loadInitialState() {
         _state.update { it.copy(stage = ExamStage.Loading, isBusy = true, errorMessage = null) }
-        val pack = packRepository.observeActivePack().firstOrNull()
+        var pack = packRepository.observeActivePack().firstOrNull()
+        
         if (pack == null) {
-            // Si no hay pack activo, buscar packs disponibles
+            // Si no hay pack activo, buscar packs disponibles y descargar automáticamente
             val availablePack = runCatching { packRepository.fetchCurrentPackMeta() }.getOrNull()
-            _state.update {
-                it.copy(
-                    stage = ExamStage.Start,
-                    pack = null,
-                    availablePack = availablePack,
-                    questions = emptyList(),
-                    isBusy = false,
-                    errorMessage = if (availablePack == null) {
-                        "No hay packs disponibles. Intenta refrescar."
-                    } else {
-                        "Descarga un pack para iniciar el simulacro."
+            
+            if (availablePack != null) {
+                // Descargar automáticamente el pack disponible
+                _state.update { it.copy(isBusy = true, errorMessage = "Descargando pack...") }
+                try {
+                    android.util.Log.d("ExamViewModel", "Auto-downloading pack: ${availablePack.packId}")
+                    pack = packRepository.downloadPack(availablePack.packId)
+                    android.util.Log.d("ExamViewModel", "Pack downloaded successfully: ${pack.packId}")
+                    // Continuar con la carga normal ahora que tenemos el pack
+                } catch (e: Exception) {
+                    android.util.Log.e("ExamViewModel", "Error auto-downloading pack", e)
+                    _state.update {
+                        it.copy(
+                            stage = ExamStage.Start,
+                            pack = null,
+                            availablePack = availablePack,
+                            questions = emptyList(),
+                            isBusy = false,
+                            errorMessage = "Error al descargar el pack. Intenta nuevamente."
+                        )
                     }
-                )
+                    return
+                }
+            } else {
+                // No hay pack disponible
+                _state.update {
+                    it.copy(
+                        stage = ExamStage.Start,
+                        pack = null,
+                        availablePack = null,
+                        questions = emptyList(),
+                        isBusy = false,
+                        errorMessage = "No hay packs disponibles. Intenta refrescar."
+                    )
+                }
+                return
             }
-            return
         }
 
         val questions = runCatching { prepareQuestions(pack.packId) }

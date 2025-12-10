@@ -47,9 +47,13 @@ class PackUpdateWorker @AssistedInject constructor(
                 return Result.success()
             }
 
-            // 3. Comparar: si el pack disponible es diferente al activo, descargarlo
-            if (currentPackId != availablePackMeta.packId) {
-                Log.d(TAG, "New pack available: ${availablePackMeta.packId} (current: $currentPackId)")
+            // 3. Comparar: si el pack disponible es diferente al activo, o no hay pack activo, descargarlo
+            if (currentPackId == null || currentPackId != availablePackMeta.packId) {
+                if (currentPackId == null) {
+                    Log.d(TAG, "No active pack found, downloading available pack: ${availablePackMeta.packId}")
+                } else {
+                    Log.d(TAG, "New pack available: ${availablePackMeta.packId} (current: $currentPackId)")
+                }
                 
                 try {
                     // Descargar el nuevo pack automáticamente
