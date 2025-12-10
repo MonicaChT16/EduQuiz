@@ -291,3 +291,13 @@ kapt {
 
 **Una vez completado este checklist, tu base de datos estará lista para usar.** 🎉
 
+
+
+
+
+
+
+
+
+
+

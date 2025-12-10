@@ -71,7 +71,9 @@ class AchievementEngineTest {
                 photoUrl = null,
                 schoolId = "school1",
                 classroomId = "class1",
+                ugelCode = null,
                 coins = 0,
+                xp = 0L,
                 selectedCosmeticId = null,
                 updatedAtLocal = System.currentTimeMillis(),
                 syncState = SyncState.SYNCED
@@ -98,7 +100,9 @@ class AchievementEngineTest {
                 photoUrl = null,
                 schoolId = "school1",
                 classroomId = "class1",
+                ugelCode = null,
                 coins = 0,
+                xp = 0L,
                 selectedCosmeticId = null,
                 updatedAtLocal = System.currentTimeMillis(),
                 syncState = SyncState.SYNCED
@@ -128,7 +132,9 @@ class AchievementEngineTest {
                 photoUrl = null,
                 schoolId = "school1",
                 classroomId = "class1",
+                ugelCode = null,
                 coins = 0,
+                xp = 0L,
                 selectedCosmeticId = null,
                 updatedAtLocal = System.currentTimeMillis(),
                 syncState = SyncState.SYNCED
@@ -160,7 +166,9 @@ class AchievementEngineTest {
                 photoUrl = null,
                 schoolId = "school1",
                 classroomId = "class1",
+                ugelCode = null,
                 coins = 0,
+                xp = 0L,
                 selectedCosmeticId = null,
                 updatedAtLocal = System.currentTimeMillis(),
                 syncState = SyncState.SYNCED

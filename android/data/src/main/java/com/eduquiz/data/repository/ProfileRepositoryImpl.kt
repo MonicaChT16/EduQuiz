@@ -3,20 +3,25 @@ package com.eduquiz.data.repository
 import com.eduquiz.data.db.AchievementsDao
 import com.eduquiz.data.db.ProfileDao
 import com.eduquiz.data.db.StoreDao
+import com.eduquiz.data.remote.FirestoreSyncService
 import com.eduquiz.domain.profile.Achievement
 import com.eduquiz.domain.profile.DailyStreak
 import com.eduquiz.domain.profile.InventoryItem
 import com.eduquiz.domain.profile.ProfileRepository
+import com.eduquiz.domain.profile.SyncState
 import com.eduquiz.domain.profile.UserProfile
+import com.google.firebase.firestore.FirebaseFirestore
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.tasks.await
 
 class ProfileRepositoryImpl @Inject constructor(
     private val profileDao: ProfileDao,
     private val storeDao: StoreDao,
     private val achievementsDao: AchievementsDao,
+    private val firestore: FirebaseFirestore,
 ) : ProfileRepository {
 
     override fun observeProfile(uid: String): Flow<UserProfile?> =
@@ -70,6 +75,53 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override suspend fun updatePhotoUrl(uid: String, photoUrl: String?, updatedAtLocal: Long, syncState: String) {
         profileDao.updatePhotoUrl(uid, photoUrl, updatedAtLocal, syncState)
+    }
+
+    override suspend fun updateUgelCode(uid: String, ugelCode: String?, updatedAtLocal: Long, syncState: String) {
+        profileDao.updateUgelCode(uid, ugelCode, updatedAtLocal, syncState)
+    }
+
+    override suspend fun fetchProfileFromFirestore(uid: String): UserProfile? {
+        return try {
+            val profileRef = firestore.collection("users").document(uid)
+            val snapshot = profileRef.get().await()
+            
+            if (!snapshot.exists()) {
+                android.util.Log.d("ProfileRepository", "Profile not found in Firestore for $uid")
+                return null
+            }
+            
+            // Mapear desde Firestore a UserProfile
+            // Priorizar ugelCode sobre schoolCode (el código UGEL es más específico)
+            val ugelCode = snapshot.getString("ugelCode")?.takeIf { it.isNotBlank() }
+            val schoolCode = snapshot.getString("schoolCode")?.takeIf { it.isNotBlank() }
+            // Usar ugelCode si existe, sino schoolCode (compatibilidad con datos antiguos)
+            val finalUgelCode = ugelCode ?: schoolCode
+            
+            // Preservar el código UGEL si existe (no se borra)
+            val profile = UserProfile(
+                uid = snapshot.id,
+                displayName = snapshot.getString("displayName") ?: "Usuario",
+                photoUrl = snapshot.getString("photoUrl"),
+                schoolId = snapshot.getString("schoolId") ?: "",
+                classroomId = snapshot.getString("classroomId") ?: "",
+                ugelCode = finalUgelCode, // Preservar el código UGEL desde Firestore
+                coins = (snapshot.getLong("coins") ?: 0L).toInt(),
+                xp = snapshot.getLong("xp") ?: snapshot.getLong("totalXp") ?: 0L,
+                selectedCosmeticId = snapshot.getString("selectedCosmeticId"),
+                updatedAtLocal = snapshot.getLong("updatedAtLocal") ?: System.currentTimeMillis(),
+                syncState = SyncState.SYNCED
+            )
+            
+            // Guardar en Room
+            profileDao.upsertProfile(profile.toEntity())
+            android.util.Log.d("ProfileRepository", "Profile fetched from Firestore and saved locally: $uid")
+            
+            profile
+        } catch (e: Exception) {
+            android.util.Log.e("ProfileRepository", "Error fetching profile from Firestore", e)
+            null
+        }
     }
 
     override suspend fun saveDailyStreak(streak: DailyStreak) {

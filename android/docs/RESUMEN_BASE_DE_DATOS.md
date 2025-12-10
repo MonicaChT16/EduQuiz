@@ -187,3 +187,13 @@ Migration(2, 3) { database ->
 **Versión BD**: 2
 **Última actualización**: Base de datos lista para producción
 
+
+
+
+
+
+
+
+
+
+

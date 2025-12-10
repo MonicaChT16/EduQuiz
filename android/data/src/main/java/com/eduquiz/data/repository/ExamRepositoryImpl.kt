@@ -21,6 +21,7 @@ class ExamRepositoryImpl @Inject constructor(
     override suspend fun startAttempt(
         uid: String,
         packId: String,
+        subject: String?,
         startedAtLocal: Long,
         durationMs: Long
     ): String {
@@ -29,6 +30,7 @@ class ExamRepositoryImpl @Inject constructor(
             attemptId = attemptId,
             uid = uid,
             packId = packId,
+            subject = subject,
             startedAtLocal = startedAtLocal,
             finishedAtLocal = null,
             durationMs = durationMs,

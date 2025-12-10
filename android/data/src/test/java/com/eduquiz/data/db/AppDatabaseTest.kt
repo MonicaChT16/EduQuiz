@@ -77,7 +77,9 @@ class AppDatabaseTest {
             photoUrl = null,
             schoolId = "school-1",
             classroomId = "class-1",
+            ugelCode = null,
             coins = 0,
+            xp = 0L,
             selectedCosmeticId = "default",
             updatedAtLocal = 1L,
             syncState = SyncState.PENDING
@@ -109,6 +111,7 @@ class AppDatabaseTest {
             attemptId = "attempt-1",
             uid = "uid-1",
             packId = pack.packId,
+            subject = null,
             startedAtLocal = 1L,
             finishedAtLocal = null,
             durationMs = 1_200_000L,

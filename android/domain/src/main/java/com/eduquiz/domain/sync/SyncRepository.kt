@@ -12,4 +12,39 @@ interface SyncRepository {
      * Útil para sincronizar periódicamente cuando hay internet.
      */
     fun schedulePeriodicSync()
+
+    /**
+     * Programa la verificación y actualización automática de packs.
+     * Se ejecuta periódicamente cuando hay conexión a internet.
+     */
+    fun schedulePackUpdate()
+
+    /**
+     * Ejecuta una verificación inmediata de packs disponibles.
+     * Útil cuando la app se inicia o cuando se detecta conexión a internet.
+     */
+    fun checkPackUpdateNow()
+    
+    /**
+     * Sincroniza todos los usuarios de la app a Firestore.
+     * Útil para migrar usuarios existentes o forzar una actualización masiva.
+     * @return Resultado con el número de usuarios sincronizados y fallidos
+     */
+    suspend fun syncAllUsers(): SyncAllUsersResult
+    
+    /**
+     * Encola una sincronización masiva de todos los usuarios en segundo plano.
+     * Se ejecuta cuando hay conexión a internet.
+     */
+    fun enqueueSyncAllUsers()
 }
+
+/**
+ * Resultado de la sincronización masiva de usuarios.
+ */
+data class SyncAllUsersResult(
+    val totalUsers: Int,
+    val syncedUsers: Int,
+    val failedUsers: Int,
+    val skippedUsers: Int
+)

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -32,6 +35,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -45,6 +51,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eduquiz.domain.exam.ExamStatus
 import com.eduquiz.feature.exam.ExamResult
+import com.eduquiz.feature.exam.QuestionReview
 
 @Composable
 fun ExamFeature(
@@ -60,7 +67,6 @@ fun ExamFeature(
         ExamStage.Loading -> LoadingScreen(modifier)
         ExamStage.Start -> ExamStartScreen(
             state = state,
-            onStart = viewModel::startExam,
             modifier = modifier,
             viewModel = viewModel
         )
@@ -89,7 +95,7 @@ fun ExamFeature(
 @Composable
 private fun ExamStartScreen(
     state: ExamUiState,
-    onStart: () -> Unit,
+    onStart: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ExamViewModel = hiltViewModel()
 ) {
@@ -199,20 +205,37 @@ private fun ExamStartScreen(
                     }
                 }
             } else {
-                // Si hay pack activo, mostrar botón de iniciar
-                Button(
-                    onClick = onStart,
-                    enabled = state.pack != null && state.totalQuestions > 0 && !state.isBusy
+                // Si hay pack activo, mostrar botones de materias
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    if (state.isBusy) {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .padding(end = 8.dp)
-                                .size(18.dp),
-                            strokeWidth = 2.dp
-                        )
-                    }
-                    Text(text = "Iniciar intento")
+                    Text(
+                        text = "Selecciona una materia:",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    SubjectButton(
+                        subject = com.eduquiz.domain.pack.Subject.MATEMATICA,
+                        onClick = { viewModel.startExam(com.eduquiz.domain.pack.Subject.MATEMATICA) },
+                        enabled = !state.isBusy,
+                        isLoading = state.isBusy
+                    )
+                    
+                    SubjectButton(
+                        subject = com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA,
+                        onClick = { viewModel.startExam(com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA) },
+                        enabled = !state.isBusy,
+                        isLoading = state.isBusy
+                    )
+                    
+                    SubjectButton(
+                        subject = com.eduquiz.domain.pack.Subject.CIENCIAS,
+                        onClick = { viewModel.startExam(com.eduquiz.domain.pack.Subject.CIENCIAS) },
+                        enabled = !state.isBusy,
+                        isLoading = state.isBusy
+                    )
                 }
             }
         }
@@ -309,6 +332,8 @@ private fun ExamResultScreen(
     viewModel: ExamViewModel = hiltViewModel()
 ) {
     val resultState by viewModel.resultState.collectAsStateWithLifecycle()
+    val reviewData by viewModel.reviewData.collectAsStateWithLifecycle()
+    var showReview by remember { mutableStateOf(false) }
     
     LaunchedEffect(attemptId) {
         if (attemptId != null) {
@@ -317,33 +342,48 @@ private fun ExamResultScreen(
     }
 
     Surface(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (resultState == null) {
-                CircularProgressIndicator()
-            } else {
-                val result = resultState!!
-                Text(text = "Resultados", style = MaterialTheme.typography.headlineMedium)
-                Text(
-                    text = "Estado: ${result.status}",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "Puntaje: ${result.scoreRaw}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Preguntas respondidas: ${result.answeredCount}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Button(onClick = onExit) {
-                    Text(text = "Volver")
+        if (showReview && reviewData.isNotEmpty()) {
+            ExamReviewScreen(
+                reviewData = reviewData,
+                onBack = { showReview = false },
+                onExit = onExit
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (resultState == null) {
+                    CircularProgressIndicator()
+                } else {
+                    val result = resultState!!
+                    Text(text = "Resultados", style = MaterialTheme.typography.headlineMedium)
+                    Text(
+                        text = "Estado: ${result.status}",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "Puntaje: ${result.scoreRaw}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Preguntas respondidas: ${result.answeredCount}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(onClick = { showReview = true }) {
+                            Text(text = "Ver Revisión")
+                        }
+                        OutlinedButton(onClick = onExit) {
+                            Text(text = "Volver")
+                        }
+                    }
                 }
             }
         }
@@ -464,17 +504,41 @@ private fun QuestionCard(
 }
 
 @Composable
+private fun SubjectButton(
+    subject: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    isLoading: Boolean
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .size(18.dp),
+                strokeWidth = 2.dp
+            )
+        }
+        Text(text = com.eduquiz.domain.pack.Subject.getDisplayName(subject))
+    }
+}
+
+@Composable
 private fun WarningDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(onClick = onDismiss) {
-                Text(text = "Continuar")
+                Text(text = "Entendido")
             }
         },
-        title = { Text(text = "No salgas de la app") },
+        title = { Text(text = "Advertencia") },
         text = {
-            Text(text = "Si vuelves a salir se anulará el intento por trampa.")
+            Text(text = "Si sales una vez más, el examen se enviará automáticamente.")
         }
     )
 }
@@ -520,4 +584,241 @@ private fun formatMillis(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
+}
+
+@Composable
+private fun ExamReviewScreen(
+    reviewData: List<QuestionReview>,
+    onBack: () -> Unit,
+    onExit: () -> Unit
+) {
+    Surface(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Revisión del Examen",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onBack) {
+                        Text("Atrás")
+                    }
+                    Button(onClick = onExit) {
+                        Text("Salir")
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Lista de preguntas
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                itemsIndexed(reviewData) { index, review ->
+                    QuestionReviewCard(
+                        questionNumber = index + 1,
+                        review = review
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuestionReviewCard(
+    questionNumber: Int,
+    review: QuestionReview
+) {
+    val isCorrect = review.userAnswer?.isCorrect == true
+    val userSelectedOption = review.options.find { it.optionId == review.userAnswer?.selectedOptionId }
+    val correctOption = review.options.find { it.optionId == review.correctOptionId }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isCorrect) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.errorContainer
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Número y estado
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Pregunta $questionNumber",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = if (isCorrect) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            },
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (isCorrect) "✓ Correcta" else "✗ Incorrecta",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (isCorrect) {
+                            MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            MaterialTheme.colorScheme.onError
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            
+            // Texto de lectura
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = review.text.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = review.text.body,
+                        style = MaterialTheme.typography.bodyMedium,
+                        lineHeight = 20.sp
+                    )
+                }
+            }
+            
+            // Pregunta
+            Text(
+                text = review.question.prompt,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            
+            // Opciones
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                review.options.forEach { option ->
+                    val isUserAnswer = option.optionId == review.userAnswer?.selectedOptionId
+                    val isCorrectAnswer = option.optionId == review.correctOptionId
+                    
+                    val backgroundColor = when {
+                        isCorrectAnswer && isUserAnswer -> MaterialTheme.colorScheme.primaryContainer
+                        isCorrectAnswer -> MaterialTheme.colorScheme.primaryContainer
+                        isUserAnswer -> MaterialTheme.colorScheme.errorContainer
+                        else -> MaterialTheme.colorScheme.surfaceVariant
+                    }
+                    
+                    val borderColor = when {
+                        isCorrectAnswer -> MaterialTheme.colorScheme.primary
+                        isUserAnswer -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.outline
+                    }
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 2.dp,
+                                color = borderColor,
+                                shape = RoundedCornerShape(8.dp)
+                            ),
+                        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = option.text,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isUserAnswer) {
+                                Text(
+                                    text = "Tu respuesta",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            if (isCorrectAnswer && !isUserAnswer) {
+                                Text(
+                                    text = "Correcta",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Explicación
+            val explanationText = review.question.explanationText
+            if (!explanationText.isNullOrBlank()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Explicación:",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = explanationText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

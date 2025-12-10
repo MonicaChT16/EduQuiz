@@ -236,3 +236,13 @@ question_entity (1) ──< (N) exam_answer_entity
 
 **Nota**: Este diagrama representa la estructura actual de la base de datos Room versión 2.
 
+
+
+
+
+
+
+
+
+
+

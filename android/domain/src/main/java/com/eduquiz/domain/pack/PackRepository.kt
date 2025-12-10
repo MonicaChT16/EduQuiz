@@ -19,5 +19,6 @@ interface PackRepository {
     suspend fun getTextsForPack(packId: String): List<TextContent>
     suspend fun getQuestionsForText(textId: String): List<Question>
     suspend fun getQuestionsForPack(packId: String): List<Question>
+    suspend fun getQuestionsForPackBySubject(packId: String, subject: String): List<Question>
     suspend fun getOptionsForQuestion(questionId: String): List<Option>
 }

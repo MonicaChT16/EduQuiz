@@ -1,6 +1,7 @@
 package com.eduquiz.data.remote
 
 import com.eduquiz.domain.pack.ExplanationStatus
+import com.eduquiz.domain.pack.Subject
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
@@ -58,37 +59,79 @@ class FirestorePackRemoteDataSource @Inject constructor(
 ) : PackRemoteDataSource {
 
     override suspend fun fetchCurrentPackMeta(): PackMetaRemote? {
-        // Obtener todos los packs publicados y ordenar en memoria
-        // Esto evita la necesidad de un índice compuesto en Firestore
-        val snapshots = firestore.collection(PACKS_COLLECTION)
-            .whereEqualTo("status", STATUS_PUBLISHED)
-            .get()
-            .await()
-            .documents
+        return try {
+            android.util.Log.d("PackRemoteDataSource", "=== INICIANDO CONSULTA A FIRESTORE ===")
+            android.util.Log.d("PackRemoteDataSource", "Firestore app: ${firestore.app.name}")
+            android.util.Log.d("PackRemoteDataSource", "Collection: $PACKS_COLLECTION")
+            android.util.Log.d("PackRemoteDataSource", "Status filter: $STATUS_PUBLISHED")
+            
+            // Obtener todos los packs publicados y ordenar en memoria
+            // Esto evita la necesidad de un índice compuesto en Firestore
+            android.util.Log.d("PackRemoteDataSource", "Ejecutando consulta...")
+            val snapshots = firestore.collection(PACKS_COLLECTION)
+                .whereEqualTo("status", STATUS_PUBLISHED)
+                .get()
+                .await()
+                .documents
 
-        // Ordenar por publishedAt descendente y tomar el más reciente
-        val snapshot = snapshots
-            .sortedByDescending { it.getLong("publishedAt") ?: 0L }
-            .firstOrNull()
+            android.util.Log.d("PackRemoteDataSource", "✅ Consulta completada. Found ${snapshots.size} published packs")
 
-        return snapshot?.toPackMeta()
+            // Ordenar por publishedAt descendente y tomar el más reciente
+            val snapshot = snapshots
+                .sortedByDescending { it.getLong("publishedAt") ?: 0L }
+                .firstOrNull()
+
+            if (snapshot == null) {
+                android.util.Log.w("PackRemoteDataSource", "No published pack found")
+                return null
+            }
+
+            val meta = snapshot.toPackMeta()
+            android.util.Log.d("PackRemoteDataSource", "Successfully fetched pack meta: ${meta?.packId}")
+            meta
+        } catch (e: Exception) {
+            android.util.Log.e("PackRemoteDataSource", "Error fetching current pack meta", e)
+            android.util.Log.e("PackRemoteDataSource", "Error message: ${e.message}")
+            android.util.Log.e("PackRemoteDataSource", "Error cause: ${e.cause?.message}")
+            throw e
+        }
     }
 
     override suspend fun fetchPack(packId: String): PackBundleRemote? {
-        val packSnapshot = firestore.collection(PACKS_COLLECTION)
-            .document(packId)
-            .get()
-            .await()
+        return try {
+            android.util.Log.d("PackRemoteDataSource", "Fetching pack $packId from Firestore...")
+            val packSnapshot = firestore.collection(PACKS_COLLECTION)
+                .document(packId)
+                .get()
+                .await()
 
-        val meta = packSnapshot.toPackMeta() ?: return null
-        val texts = fetchTexts(meta)
-        val questions = fetchQuestions(meta)
+            if (!packSnapshot.exists()) {
+                android.util.Log.w("PackRemoteDataSource", "Pack $packId does not exist in Firestore")
+                return null
+            }
 
-        return PackBundleRemote(
-            meta = meta,
-            texts = texts,
-            questions = questions
-        )
+            val meta = packSnapshot.toPackMeta() ?: run {
+                android.util.Log.w("PackRemoteDataSource", "Failed to parse pack meta for $packId")
+                return null
+            }
+            
+            android.util.Log.d("PackRemoteDataSource", "Fetching ${meta.textIds.size} texts and ${meta.questionIds.size} questions...")
+            val texts = fetchTexts(meta)
+            val questions = fetchQuestions(meta)
+
+            android.util.Log.d("PackRemoteDataSource", "Successfully fetched pack: ${texts.size} texts, ${questions.size} questions")
+            
+            PackBundleRemote(
+                meta = meta,
+                texts = texts,
+                questions = questions
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("PackRemoteDataSource", "Error fetching pack $packId", e)
+            android.util.Log.e("PackRemoteDataSource", "Error message: ${e.message}")
+            android.util.Log.e("PackRemoteDataSource", "Error cause: ${e.cause?.message}")
+            throw e
+        }
     }
 
     private suspend fun fetchTexts(meta: PackMetaRemote): List<TextRemote> {
@@ -187,8 +230,16 @@ class FirestorePackRemoteDataSource @Inject constructor(
     private fun DocumentSnapshot.toTextRemote(defaultPackId: String): TextRemote? {
         val title = getString("title") ?: return null
         val body = getString("body") ?: return null
-        val subject = getString("subject") ?: "GENERAL"
+        // Normalizar el subject: convertir valores antiguos a los nuevos
+        val rawSubject = getString("subject") ?: "GENERAL"
+        val subject = when (rawSubject.uppercase()) {
+            "LECTURA", "LECTURA_COMPRENSION", "COMPRENSION" -> Subject.COMPRENSION_LECTORA
+            "MATEMATICA", "MATEMATICAS", "MATH" -> Subject.MATEMATICA
+            "CIENCIAS", "CIENCIA", "SCIENCE" -> Subject.CIENCIAS
+            else -> rawSubject.uppercase()
+        }
         val packId = getString("packId") ?: defaultPackId
+        android.util.Log.d("PackRemoteDataSource", "Text $id: subject=$rawSubject -> normalized=$subject")
         return TextRemote(
             textId = id,
             packId = packId,

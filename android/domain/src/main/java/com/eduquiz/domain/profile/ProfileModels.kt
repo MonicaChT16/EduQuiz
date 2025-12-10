@@ -6,6 +6,7 @@ data class UserProfile(
     val photoUrl: String?,
     val schoolId: String,
     val classroomId: String,
+    val ugelCode: String? = null, // Código UGEL ingresado por el usuario
     val coins: Int,
     val xp: Long = 0L, // Puntos de experiencia (acumulativo, nunca disminuye)
     val selectedCosmeticId: String?, // Nullable porque puede no tener cosmético equipado

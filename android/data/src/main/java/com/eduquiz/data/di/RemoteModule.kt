@@ -15,7 +15,11 @@ object RemoteModule {
 
     @Provides
     @Singleton
-    fun provideFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+    fun provideFirestore(): FirebaseFirestore {
+        val firestore = FirebaseFirestore.getInstance()
+        android.util.Log.d("RemoteModule", "Providing Firestore instance: ${firestore.app.name}")
+        return firestore
+    }
 
     @Provides
     @Singleton

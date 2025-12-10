@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "ce335be780d4306a627cee37ede22345",
+    "identityHash": "f68468a2d50fa2bc1481ca05b71c656c",
     "entities": [
       {
         "tableName": "pack_entity",
@@ -518,7 +518,7 @@
       },
       {
         "tableName": "exam_attempt_entity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`attemptId` TEXT NOT NULL, `uid` TEXT NOT NULL, `packId` TEXT NOT NULL, `startedAtLocal` INTEGER NOT NULL, `finishedAtLocal` INTEGER, `durationMs` INTEGER NOT NULL, `status` TEXT NOT NULL, `scoreRaw` INTEGER NOT NULL, `scoreValidated` INTEGER, `origin` TEXT NOT NULL, `syncState` TEXT NOT NULL, PRIMARY KEY(`attemptId`), FOREIGN KEY(`uid`) REFERENCES `user_profile_entity`(`uid`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`packId`) REFERENCES `pack_entity`(`packId`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`attemptId` TEXT NOT NULL, `uid` TEXT NOT NULL, `packId` TEXT NOT NULL, `subject` TEXT, `startedAtLocal` INTEGER NOT NULL, `finishedAtLocal` INTEGER, `durationMs` INTEGER NOT NULL, `status` TEXT NOT NULL, `scoreRaw` INTEGER NOT NULL, `scoreValidated` INTEGER, `origin` TEXT NOT NULL, `syncState` TEXT NOT NULL, PRIMARY KEY(`attemptId`), FOREIGN KEY(`uid`) REFERENCES `user_profile_entity`(`uid`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`packId`) REFERENCES `pack_entity`(`packId`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
         "fields": [
           {
             "fieldPath": "attemptId",
@@ -537,6 +537,11 @@
             "columnName": "packId",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "subject",
+            "columnName": "subject",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "startedAtLocal",
@@ -722,35 +727,11 @@
             ]
           }
         ]
-      },
-      {
-        "tableName": "onboarding_preferences_entity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `hasCompletedOnboarding` INTEGER NOT NULL, PRIMARY KEY(`id`))",
-        "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "hasCompletedOnboarding",
-            "columnName": "hasCompletedOnboarding",
-            "affinity": "INTEGER",
-            "notNull": true
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "id"
-          ]
-        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ce335be780d4306a627cee37ede22345')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f68468a2d50fa2bc1481ca05b71c656c')"
     ]
   }
 }
