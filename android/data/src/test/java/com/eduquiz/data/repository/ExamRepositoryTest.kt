@@ -59,7 +59,7 @@ class ExamRepositoryTest {
         // Setup pack
         packDao.insert(PackEntity(packId, "Semana 1", "ACTIVE", 0L, 0L))
 
-        val attemptId = repository.startAttempt(uid, packId, startedAt, duration)
+        val attemptId = repository.startAttempt(uid, packId, null, startedAt, duration)
 
         assertNotNull(attemptId)
         val attempts = examDao.getAttempts(uid)
@@ -97,7 +97,7 @@ class ExamRepositoryTest {
             )
         )
 
-        val attemptId = repository.startAttempt(uid, packId, System.currentTimeMillis(), 20 * 60 * 1000L)
+        val attemptId = repository.startAttempt(uid, packId, null, System.currentTimeMillis(), 20 * 60 * 1000L)
 
         // Submit correct answer
         repository.submitAnswer(attemptId, questionId, correctOptionId, 5000L)
@@ -138,7 +138,7 @@ class ExamRepositoryTest {
             )
         )
 
-        val attemptId = repository.startAttempt(uid, packId, System.currentTimeMillis(), 20 * 60 * 1000L)
+        val attemptId = repository.startAttempt(uid, packId, null, System.currentTimeMillis(), 20 * 60 * 1000L)
 
         // Submit 2 correct answers
         repository.submitAnswer(attemptId, question1Id, correctOption1, 5000L)
@@ -171,7 +171,7 @@ class ExamRepositoryTest {
             )
         )
 
-        val attemptId = repository.startAttempt(uid, packId, System.currentTimeMillis(), 20 * 60 * 1000L)
+        val attemptId = repository.startAttempt(uid, packId, null, System.currentTimeMillis(), 20 * 60 * 1000L)
 
         // Responder 1 pregunta antes de cancelar
         repository.submitAnswer(attemptId, question1Id, correctOption1, 5000L)
@@ -193,8 +193,8 @@ class ExamRepositoryTest {
 
         packDao.insert(PackEntity(packId, "Semana 1", "ACTIVE", 0L, 0L))
 
-        val attempt1Id = repository.startAttempt(uid, packId, 1000L, 20 * 60 * 1000L)
-        val attempt2Id = repository.startAttempt(uid, packId, 2000L, 20 * 60 * 1000L)
+        val attempt1Id = repository.startAttempt(uid, packId, null, 1000L, 20 * 60 * 1000L)
+        val attempt2Id = repository.startAttempt(uid, packId, null, 2000L, 20 * 60 * 1000L)
 
         repository.finishAttempt(attempt1Id, 5000L, ExamStatus.COMPLETED)
         repository.finishAttempt(attempt2Id, 6000L, ExamStatus.COMPLETED)

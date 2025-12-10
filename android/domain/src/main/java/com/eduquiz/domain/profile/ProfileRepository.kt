@@ -22,6 +22,18 @@ interface ProfileRepository {
      * Actualiza la URL de la foto de perfil del usuario.
      */
     suspend fun updatePhotoUrl(uid: String, photoUrl: String?, updatedAtLocal: Long, syncState: String)
+    
+    /**
+     * Actualiza el código UGEL del usuario.
+     * Este código se usa para agrupar usuarios en rankings por colegio/UGEL.
+     */
+    suspend fun updateUgelCode(uid: String, ugelCode: String?, updatedAtLocal: Long, syncState: String)
+    
+    /**
+     * Obtiene el perfil del usuario desde Firestore si no existe localmente.
+     * Útil para recuperar datos después de desinstalar/reinstalar la app.
+     */
+    suspend fun fetchProfileFromFirestore(uid: String): UserProfile?
 
     suspend fun saveDailyStreak(streak: DailyStreak)
     fun observeDailyStreak(uid: String): Flow<DailyStreak?>

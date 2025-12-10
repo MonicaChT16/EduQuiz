@@ -28,7 +28,12 @@ class PackRepositoryImpl @Inject constructor(
 ) : PackRepository {
 
     override suspend fun fetchCurrentPackMeta(): PackMeta? {
-        return remoteDataSource.fetchCurrentPackMeta()?.toPackMeta()
+        return try {
+            remoteDataSource.fetchCurrentPackMeta()?.toPackMeta()
+        } catch (e: Exception) {
+            android.util.Log.e("PackRepositoryImpl", "Error fetching pack meta", e)
+            throw e // Propagar el error para que se muestre en la UI
+        }
     }
 
     override suspend fun downloadPack(packId: String): Pack {
@@ -56,17 +61,23 @@ class PackRepositoryImpl @Inject constructor(
             question.options.map { it.toDomain(question.questionId) }
         }
 
+        // Validar que tenemos datos antes de guardar
+        if (texts.isEmpty()) {
+            error("El pack $packId no tiene textos asociados. Se esperaban ${bundle.meta.textIds.size} textos pero se encontraron ${bundle.texts.size}.")
+        }
+        if (questions.isEmpty()) {
+            error("El pack $packId no tiene preguntas asociadas. Se esperaban ${bundle.meta.questionIds.size} preguntas pero se encontraron ${bundle.questions.size}. IDs esperados: ${bundle.meta.questionIds.joinToString()}")
+        }
+        if (options.isEmpty()) {
+            val questionsWithOptions = bundle.questions.count { it.options.isNotEmpty() }
+            error("El pack $packId no tiene opciones asociadas a las preguntas. De ${bundle.questions.size} preguntas, solo ${questionsWithOptions} tienen opciones.")
+        }
+
         database.withTransaction {
             packDao.insert(pack.toEntity())
-            if (texts.isNotEmpty()) {
-                contentDao.insertTexts(texts.map { it.toEntity() })
-            }
-            if (questions.isNotEmpty()) {
-                contentDao.insertQuestions(questions.map { it.toEntity() })
-            }
-            if (options.isNotEmpty()) {
-                contentDao.insertOptions(options.map { it.toEntity() })
-            }
+            contentDao.insertTexts(texts.map { it.toEntity() })
+            contentDao.insertQuestions(questions.map { it.toEntity() })
+            contentDao.insertOptions(options.map { it.toEntity() })
             packDao.markAsActive(pack.packId)
             packDao.updateStatusForOthers(
                 packId = pack.packId,
@@ -121,6 +132,9 @@ class PackRepositoryImpl @Inject constructor(
 
     override suspend fun getQuestionsForPack(packId: String): List<Question> =
         contentDao.getQuestionsByPack(packId).map { it.toDomain() }
+
+    override suspend fun getQuestionsForPackBySubject(packId: String, subject: String): List<Question> =
+        contentDao.getQuestionsByPackAndSubject(packId, subject).map { it.toDomain() }
 
     override suspend fun getOptionsForQuestion(questionId: String): List<Option> =
         contentDao.getOptionsByQuestion(questionId).map { it.toDomain() }

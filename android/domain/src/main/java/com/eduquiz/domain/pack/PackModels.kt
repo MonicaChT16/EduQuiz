@@ -53,3 +53,20 @@ object ExplanationStatus {
     const val GENERATED = "GENERATED"
     const val APPROVED = "APPROVED"
 }
+
+object Subject {
+    const val MATEMATICA = "MATEMATICA"
+    const val COMPRENSION_LECTORA = "COMPRENSION_LECTORA"
+    const val CIENCIAS = "CIENCIAS"
+    
+    val ALL = listOf(MATEMATICA, COMPRENSION_LECTORA, CIENCIAS)
+    
+    fun getDisplayName(subject: String): String {
+        return when (subject) {
+            MATEMATICA -> "Matemáticas"
+            COMPRENSION_LECTORA -> "Comprensión Lectora"
+            CIENCIAS -> "Ciencias"
+            else -> subject
+        }
+    }
+}

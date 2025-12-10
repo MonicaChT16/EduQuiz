@@ -101,6 +101,7 @@ data class UserProfileEntity(
     val photoUrl: String?,
     val schoolId: String,
     val classroomId: String,
+    val ugelCode: String? = null, // Código UGEL ingresado por el usuario
     val coins: Int,
     val xp: Long = 0L, // Puntos de experiencia (acumulativo, nunca disminuye)
     val selectedCosmeticId: String?, // Nullable porque puede no tener cosmético equipado
@@ -188,6 +189,7 @@ data class ExamAttemptEntity(
     @PrimaryKey val attemptId: String,
     val uid: String,
     val packId: String,
+    val subject: String?,
     val startedAtLocal: Long,
     val finishedAtLocal: Long?,
     val durationMs: Long,
@@ -281,6 +283,13 @@ interface ContentDao {
     @Query("SELECT * FROM question_entity WHERE packId = :packId")
     suspend fun getQuestionsByPack(packId: String): List<QuestionEntity>
 
+    @Query("""
+        SELECT q.* FROM question_entity q
+        INNER JOIN text_entity t ON q.textId = t.textId
+        WHERE q.packId = :packId AND t.subject = :subject
+    """)
+    suspend fun getQuestionsByPackAndSubject(packId: String, subject: String): List<QuestionEntity>
+
     @Query("SELECT * FROM option_entity WHERE questionId = :questionId")
     suspend fun getOptionsByQuestion(questionId: String): List<OptionEntity>
 }
@@ -329,6 +338,15 @@ interface ProfileDao {
     )
     suspend fun updatePhotoUrl(uid: String, photoUrl: String?, updatedAtLocal: Long, syncState: String)
 
+    @Query(
+        """
+        UPDATE user_profile_entity 
+        SET ugelCode = :ugelCode, updatedAtLocal = :updatedAtLocal, syncState = :syncState 
+        WHERE uid = :uid
+        """
+    )
+    suspend fun updateUgelCode(uid: String, ugelCode: String?, updatedAtLocal: Long, syncState: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDailyStreak(entity: DailyStreakEntity)
 
@@ -337,6 +355,9 @@ interface ProfileDao {
 
     @Query("SELECT * FROM user_profile_entity WHERE syncState = :syncState")
     suspend fun getProfilesBySyncState(syncState: String): List<UserProfileEntity>
+    
+    @Query("SELECT * FROM user_profile_entity")
+    suspend fun getAllProfiles(): List<UserProfileEntity>
 
     @Query(
         """
@@ -435,7 +456,7 @@ interface ExamDao {
         ExamAttemptEntity::class,
         ExamAnswerEntity::class,
     ],
-    version = 2,
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -452,6 +473,14 @@ abstract class AppDatabase : RoomDatabase() {
             Migration(1, 2) { database ->
                 // Agregar campo XP a user_profile_entity
                 database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN xp INTEGER NOT NULL DEFAULT 0")
+            },
+            Migration(2, 3) { database ->
+                // Agregar campo subject a exam_attempt_entity (nullable para compatibilidad con intentos antiguos)
+                database.execSQL("ALTER TABLE exam_attempt_entity ADD COLUMN subject TEXT")
+            },
+            Migration(3, 4) { database ->
+                // Agregar campo ugelCode a user_profile_entity (nullable para compatibilidad con perfiles antiguos)
+                database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN ugelCode TEXT")
             }
         )
     }

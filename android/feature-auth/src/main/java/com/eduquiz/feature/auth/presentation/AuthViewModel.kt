@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.eduquiz.domain.achievements.AchievementEngine
 import com.eduquiz.domain.achievements.AchievementEvent
+import com.eduquiz.domain.pack.PackRepository
 import com.eduquiz.domain.profile.ProfileRepository
 import com.eduquiz.domain.profile.SyncState
 import com.eduquiz.domain.profile.UserProfile
@@ -30,7 +31,8 @@ class AuthViewModel @Inject constructor(
     private val syncRepository: SyncRepository,
     private val streakService: StreakService,
     private val achievementEngine: AchievementEngine,
-    private val profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository,
+    private val packRepository: PackRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
@@ -55,20 +57,30 @@ class AuthViewModel @Inject constructor(
                         // Asegurar que el perfil exista
                         val existingProfile = profileRepository.observeProfile(user.uid).firstOrNull()
                         if (existingProfile == null) {
-                            // Crear perfil inicial si no existe
-                            profileRepository.upsertProfile(
-                                UserProfile(
-                                    uid = user.uid,
-                                    displayName = user.displayName ?: "Usuario",
-                                    photoUrl = user.photoUrl,
-                                    schoolId = "",
-                                    classroomId = "",
-                                    coins = 0,
-                                    selectedCosmeticId = null,
-                                    updatedAtLocal = System.currentTimeMillis(),
-                                    syncState = SyncState.PENDING
+                            // Intentar obtener el perfil desde Firestore primero (por si desinstaló la app)
+                            val firestoreProfile = profileRepository.fetchProfileFromFirestore(user.uid)
+                            
+                            if (firestoreProfile == null) {
+                                // Si no existe en Firestore, crear perfil inicial
+                                profileRepository.upsertProfile(
+                                    UserProfile(
+                                        uid = user.uid,
+                                        displayName = user.displayName ?: "Usuario",
+                                        photoUrl = user.photoUrl,
+                                        schoolId = "",
+                                        classroomId = "",
+                                        ugelCode = null,
+                                        coins = 0,
+                                        xp = 0L,
+                                        selectedCosmeticId = null,
+                                        updatedAtLocal = System.currentTimeMillis(),
+                                        syncState = SyncState.PENDING
+                                    )
                                 )
-                            )
+                            } else {
+                                // El perfil se recuperó desde Firestore y ya está guardado en Room
+                                android.util.Log.d("AuthViewModel", "Profile recovered from Firestore: ${firestoreProfile.ugelCode}")
+                            }
                         }
                         
                         val updatedStreak = streakService.updateStreak(user.uid)
@@ -110,6 +122,8 @@ class AuthViewModel @Inject constructor(
                     syncRepository.schedulePeriodicSync()
                     // También encolar sincronización inmediata para sincronizar datos pendientes
                     syncRepository.enqueueSyncNow()
+                    // Descargar automáticamente el pack si no existe
+                    downloadPackIfNeeded()
                 }
                 is AuthResult.Failure -> _state.value = AuthState.Error(result.message)
             }
@@ -118,6 +132,35 @@ class AuthViewModel @Inject constructor(
 
     fun onGoogleSignInCanceled() {
         _state.value = AuthState.Unauthenticated
+    }
+
+    /**
+     * Descarga automáticamente el pack actual si no existe uno activo.
+     * Esto asegura que el usuario tenga contenido disponible después de reinstalar la app.
+     */
+    private fun downloadPackIfNeeded() {
+        viewModelScope.launch {
+            try {
+                // Verificar si hay un pack activo
+                val activePack = packRepository.observeActivePack().firstOrNull()
+                if (activePack == null) {
+                    // No hay pack activo, intentar descargar el pack actual
+                    val availablePack = packRepository.fetchCurrentPackMeta()
+                    if (availablePack != null) {
+                        android.util.Log.d("AuthViewModel", "Auto-downloading pack: ${availablePack.packId}")
+                        packRepository.downloadPack(availablePack.packId)
+                        android.util.Log.d("AuthViewModel", "Pack downloaded successfully")
+                    } else {
+                        android.util.Log.d("AuthViewModel", "No pack available to download")
+                    }
+                } else {
+                    android.util.Log.d("AuthViewModel", "Pack already active: ${activePack.packId}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AuthViewModel", "Error auto-downloading pack", e)
+                // No bloquear el flujo si falla la descarga del pack
+            }
+        }
     }
 
     fun logout() {

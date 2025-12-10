@@ -8,6 +8,7 @@ import com.eduquiz.domain.exam.ExamOrigin
 import com.eduquiz.domain.exam.ExamRepository
 import com.eduquiz.domain.exam.ExamStatus
 import com.eduquiz.feature.exam.ExamResult
+import com.eduquiz.feature.exam.QuestionReview
 import com.eduquiz.domain.achievements.AchievementEngine
 import com.eduquiz.domain.achievements.AchievementEvent
 import com.eduquiz.domain.pack.Pack
@@ -45,6 +46,9 @@ class ExamViewModel @Inject constructor(
     private val _resultState = MutableStateFlow<ExamResult?>(null)
     val resultState: StateFlow<ExamResult?> = _resultState.asStateFlow()
 
+    private val _reviewData = MutableStateFlow<List<QuestionReview>>(emptyList())
+    val reviewData: StateFlow<List<QuestionReview>> = _reviewData.asStateFlow()
+
     private val answers = mutableMapOf<String, ExamAnswer>()
     private var attempt: ExamAttempt? = null
     private var userId: String? = null
@@ -52,6 +56,7 @@ class ExamViewModel @Inject constructor(
     private var optionsUnlockAt: Long? = null
     private var questionShownAt: Long = 0L
     private var timerJob: Job? = null
+    private var currentSubject: String? = null
 
     fun initialize(uid: String) {
         if (userId != null) return
@@ -61,14 +66,53 @@ class ExamViewModel @Inject constructor(
         }
     }
 
-    fun startExam() {
+    fun startExam(subject: String? = null) {
         if (_state.value.stage == ExamStage.InProgress) return
         val uid = userId ?: return
         val pack = _state.value.pack ?: return
-        if (_state.value.questions.isEmpty()) {
-            _state.update { it.copy(errorMessage = "No hay preguntas disponibles para este pack.") }
-            return
+        
+        viewModelScope.launch {
+            _state.update { it.copy(isBusy = true, errorMessage = null) }
+            
+            // Guardar la materia actual
+            currentSubject = subject
+            
+            // Si se especifica una materia, cargar solo preguntas de esa materia (máximo 10)
+            val questions = if (subject != null) {
+                runCatching { prepareQuestions(pack.packId, subject) }.getOrElse { throwable ->
+                    _state.update {
+                        it.copy(
+                            isBusy = false,
+                            errorMessage = throwable.localizedMessage ?: "No hay preguntas disponibles para ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)}."
+                        )
+                    }
+                    return@launch
+                }
+            } else {
+                _state.value.questions
+            }
+            
+            if (questions.isEmpty()) {
+                _state.update { 
+                    it.copy(
+                        isBusy = false,
+                        errorMessage = "No hay preguntas disponibles para este pack."
+                    ) 
+                }
+                return@launch
+            }
+            
+            _state.update { it.copy(questions = questions) }
+            
+            startExamInternal()
         }
+    }
+    
+    private fun startExamInternal() {
+        val uid = userId ?: return
+        val pack = _state.value.pack ?: return
+        val questions = _state.value.questions
+        if (questions.isEmpty()) return
 
         viewModelScope.launch {
             _state.update { it.copy(isBusy = true, errorMessage = null) }
@@ -79,6 +123,7 @@ class ExamViewModel @Inject constructor(
             val attemptId = examRepository.startAttempt(
                 uid = uid,
                 packId = pack.packId,
+                subject = currentSubject,
                 startedAtLocal = startedAtLocal,
                 durationMs = duration
             )
@@ -88,6 +133,7 @@ class ExamViewModel @Inject constructor(
                 attemptId = attemptId,
                 uid = uid,
                 packId = pack.packId,
+                subject = currentSubject,
                 startedAtLocal = startedAtLocal,
                 finishedAtLocal = null,
                 durationMs = duration,
@@ -198,18 +244,48 @@ class ExamViewModel @Inject constructor(
 
     private suspend fun loadInitialState() {
         _state.update { it.copy(stage = ExamStage.Loading, isBusy = true, errorMessage = null) }
-        val pack = packRepository.observeActivePack().firstOrNull()
+        var pack = packRepository.observeActivePack().firstOrNull()
+        
         if (pack == null) {
-            _state.update {
-                it.copy(
-                    stage = ExamStage.Start,
-                    pack = null,
-                    questions = emptyList(),
-                    isBusy = false,
-                    errorMessage = "Descarga un pack para iniciar el simulacro."
-                )
+            // Si no hay pack activo, buscar packs disponibles y descargar automáticamente
+            val availablePack = runCatching { packRepository.fetchCurrentPackMeta() }.getOrNull()
+            
+            if (availablePack != null) {
+                // Descargar automáticamente el pack disponible
+                _state.update { it.copy(isBusy = true, errorMessage = "Descargando pack...") }
+                try {
+                    android.util.Log.d("ExamViewModel", "Auto-downloading pack: ${availablePack.packId}")
+                    pack = packRepository.downloadPack(availablePack.packId)
+                    android.util.Log.d("ExamViewModel", "Pack downloaded successfully: ${pack.packId}")
+                    // Continuar con la carga normal ahora que tenemos el pack
+                } catch (e: Exception) {
+                    android.util.Log.e("ExamViewModel", "Error auto-downloading pack", e)
+                    _state.update {
+                        it.copy(
+                            stage = ExamStage.Start,
+                            pack = null,
+                            availablePack = availablePack,
+                            questions = emptyList(),
+                            isBusy = false,
+                            errorMessage = "Error al descargar el pack. Intenta nuevamente."
+                        )
+                    }
+                    return
+                }
+            } else {
+                // No hay pack disponible
+                _state.update {
+                    it.copy(
+                        stage = ExamStage.Start,
+                        pack = null,
+                        availablePack = null,
+                        questions = emptyList(),
+                        isBusy = false,
+                        errorMessage = "No hay packs disponibles. Intenta refrescar."
+                    )
+                }
+                return
             }
-            return
         }
 
         val questions = runCatching { prepareQuestions(pack.packId) }
@@ -232,6 +308,9 @@ class ExamViewModel @Inject constructor(
                 .firstOrNull { attempt -> attempt.status == ExamStatus.IN_PROGRESS && attempt.packId == pack.packId }
         }
 
+        // Buscar packs disponibles en paralelo (para mostrar si hay actualizaciones)
+        val availablePack = runCatching { packRepository.fetchCurrentPackMeta() }.getOrNull()
+
         if (inProgressAttempt != null) {
             resumeAttempt(inProgressAttempt, pack, questions)
         } else {
@@ -239,6 +318,7 @@ class ExamViewModel @Inject constructor(
                 it.copy(
                     stage = ExamStage.Start,
                     pack = pack,
+                    availablePack = availablePack,
                     questions = questions,
                     durationMs = DEFAULT_EXAM_DURATION_MS,
                     remainingMs = DEFAULT_EXAM_DURATION_MS,
@@ -289,10 +369,17 @@ class ExamViewModel @Inject constructor(
         }
     }
 
-    private suspend fun prepareQuestions(packId: String): List<ExamContent> {
+    private suspend fun prepareQuestions(packId: String, subject: String? = null): List<ExamContent> {
         val texts = packRepository.getTextsForPack(packId).associateBy { it.textId }
-        val questions = packRepository.getQuestionsForPack(packId).sortedBy { it.questionId }
-        if (questions.isEmpty()) error("El pack no tiene preguntas almacenadas.")
+        val questions = if (subject != null) {
+            // Limitar a 10 preguntas por materia para pruebas PISA
+            packRepository.getQuestionsForPackBySubject(packId, subject)
+                .sortedBy { it.questionId }
+                .take(10)
+        } else {
+            packRepository.getQuestionsForPack(packId).sortedBy { it.questionId }
+        }
+        if (questions.isEmpty()) error("El pack no tiene preguntas almacenadas${if (subject != null) " para ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)}" else ""}.")
 
         return questions.map { question ->
             val text = texts[question.textId]
@@ -447,7 +534,112 @@ class ExamViewModel @Inject constructor(
                     finishedAtLocal = finishedAttempt.finishedAtLocal,
                     totalQuestions = _state.value.totalQuestions
                 )
+                
+                // Cargar datos de revisión
+                loadReviewData(attemptId, finishedAttempt.packId, answers)
             }
+        }
+    }
+
+    private suspend fun loadReviewData(attemptId: String, packId: String, answers: List<ExamAnswer>) {
+        try {
+            val pack = packRepository.getPackById(packId) ?: return
+            // Obtener la materia del intento para filtrar solo las preguntas de ese examen
+            val attempt = examRepository.getAttempts(userId ?: "")
+                .find { it.attemptId == attemptId }
+            val subject = attempt?.subject
+            
+            // Solo cargar preguntas de la materia del examen (no todas las del pack)
+            val questions = if (subject != null) {
+                packRepository.getQuestionsForPackBySubject(packId, subject)
+                    .sortedBy { it.questionId }
+                    .take(10) // Limitar a 10 como en el examen
+            } else {
+                // Si no hay materia, cargar todas (compatibilidad con intentos antiguos)
+                packRepository.getQuestionsForPack(packId)
+            }
+            
+            val texts = packRepository.getTextsForPack(packId)
+            val textsMap = texts.associateBy { it.textId }
+            val answersMap = answers.associateBy { it.questionId }
+            
+            // Solo incluir preguntas que tienen respuesta (del examen dado)
+            val reviewItems = questions
+                .filter { question -> answersMap.containsKey(question.questionId) }
+                .mapNotNull { question ->
+                    val text = textsMap[question.textId] ?: return@mapNotNull null
+                    val options = packRepository.getOptionsForQuestion(question.questionId)
+                    val userAnswer = answersMap[question.questionId]
+                    
+                    QuestionReview(
+                        question = question,
+                        text = text,
+                        options = options,
+                        userAnswer = userAnswer,
+                        correctOptionId = question.correctOptionId
+                    )
+                }
+            
+            _reviewData.value = reviewItems
+        } catch (e: Exception) {
+            android.util.Log.e("ExamViewModel", "Error loading review data", e)
+        }
+    }
+
+    fun refreshAvailablePack() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoadingPack = true, errorMessage = null) }
+            val availablePack = runCatching { packRepository.fetchCurrentPackMeta() }
+                .getOrElse { throwable ->
+                    android.util.Log.e("ExamViewModel", "Error fetching pack meta", throwable)
+                    val errorMsg = when {
+                        throwable.message?.contains("Missing or insufficient permissions") == true -> 
+                            "Error de permisos en Firestore. Verifica las reglas de seguridad."
+                        throwable.message?.contains("network") == true || throwable.message?.contains("Network") == true -> 
+                            "Error de conexión. Verifica tu conexión a internet."
+                        throwable.message?.contains("google-services.json") == true || throwable.message?.contains("FirebaseApp") == true -> 
+                            "Error de configuración de Firebase. Verifica google-services.json"
+                        else -> throwable.localizedMessage ?: "Error al buscar packs disponibles: ${throwable.javaClass.simpleName}"
+                    }
+                    _state.update {
+                        it.copy(
+                            isLoadingPack = false,
+                            errorMessage = errorMsg
+                        )
+                    }
+                    null
+                }
+            _state.update {
+                it.copy(
+                    availablePack = availablePack,
+                    isLoadingPack = false,
+                    errorMessage = if (availablePack == null) {
+                        "No hay packs disponibles en este momento."
+                    } else {
+                        null
+                    }
+                )
+            }
+        }
+    }
+
+    fun downloadPack() {
+        val packId = _state.value.availablePack?.packId ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(isDownloading = true, errorMessage = null) }
+            runCatching { packRepository.downloadPack(packId) }
+                .onSuccess { downloadedPack ->
+                    // Recargar el estado inicial para actualizar con el pack descargado
+                    loadInitialState()
+                }
+                .onFailure { throwable ->
+                    _state.update {
+                        it.copy(
+                            isDownloading = false,
+                            errorMessage = throwable.localizedMessage ?: "No se pudo descargar el pack."
+                        )
+                    }
+                }
         }
     }
 
