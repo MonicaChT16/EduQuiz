@@ -3,6 +3,7 @@ package com.eduquiz.feature.ranking
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.eduquiz.domain.exam.ExamRepository
+import com.eduquiz.domain.exam.ExamStatus
 import com.eduquiz.domain.ranking.LeaderboardEntry
 import com.eduquiz.domain.ranking.RankingRepository
 import com.eduquiz.domain.profile.ProfileRepository
@@ -58,7 +59,7 @@ class RankingViewModel @Inject constructor(
                 // Calcular stats desde la base de datos local
                 val attempts = examRepository.getAttempts(uid)
                 val completedAttempts = attempts.filter { 
-                    it.status == "COMPLETED" || it.status == "AUTO_SUBMIT" 
+                    it.status == ExamStatus.COMPLETED || it.status == ExamStatus.AUTO_SUBMIT 
                 }
                 val examsCompleted = completedAttempts.size
                 

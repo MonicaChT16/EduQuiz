@@ -28,7 +28,12 @@ class PackRepositoryImpl @Inject constructor(
 ) : PackRepository {
 
     override suspend fun fetchCurrentPackMeta(): PackMeta? {
-        return remoteDataSource.fetchCurrentPackMeta()?.toPackMeta()
+        return try {
+            remoteDataSource.fetchCurrentPackMeta()?.toPackMeta()
+        } catch (e: Exception) {
+            android.util.Log.e("PackRepositoryImpl", "Error fetching pack meta", e)
+            throw e // Propagar el error para que se muestre en la UI
+        }
     }
 
     override suspend fun downloadPack(packId: String): Pack {
@@ -127,6 +132,9 @@ class PackRepositoryImpl @Inject constructor(
 
     override suspend fun getQuestionsForPack(packId: String): List<Question> =
         contentDao.getQuestionsByPack(packId).map { it.toDomain() }
+
+    override suspend fun getQuestionsForPackBySubject(packId: String, subject: String): List<Question> =
+        contentDao.getQuestionsByPackAndSubject(packId, subject).map { it.toDomain() }
 
     override suspend fun getOptionsForQuestion(questionId: String): List<Option> =
         contentDao.getOptionsByQuestion(questionId).map { it.toDomain() }

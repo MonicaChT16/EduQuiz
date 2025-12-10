@@ -67,7 +67,6 @@ fun ExamFeature(
         ExamStage.Loading -> LoadingScreen(modifier)
         ExamStage.Start -> ExamStartScreen(
             state = state,
-            onStart = viewModel::startExam,
             modifier = modifier,
             viewModel = viewModel
         )
@@ -96,7 +95,7 @@ fun ExamFeature(
 @Composable
 private fun ExamStartScreen(
     state: ExamUiState,
-    onStart: () -> Unit,
+    onStart: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ExamViewModel = hiltViewModel()
 ) {
@@ -206,20 +205,37 @@ private fun ExamStartScreen(
                     }
                 }
             } else {
-                // Si hay pack activo, mostrar botón de iniciar
-                Button(
-                    onClick = onStart,
-                    enabled = state.pack != null && state.totalQuestions > 0 && !state.isBusy
+                // Si hay pack activo, mostrar botones de materias
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    if (state.isBusy) {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .padding(end = 8.dp)
-                                .size(18.dp),
-                            strokeWidth = 2.dp
-                        )
-                    }
-                    Text(text = "Iniciar intento")
+                    Text(
+                        text = "Selecciona una materia:",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    SubjectButton(
+                        subject = com.eduquiz.domain.pack.Subject.MATEMATICA,
+                        onClick = { viewModel.startExam(com.eduquiz.domain.pack.Subject.MATEMATICA) },
+                        enabled = !state.isBusy,
+                        isLoading = state.isBusy
+                    )
+                    
+                    SubjectButton(
+                        subject = com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA,
+                        onClick = { viewModel.startExam(com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA) },
+                        enabled = !state.isBusy,
+                        isLoading = state.isBusy
+                    )
+                    
+                    SubjectButton(
+                        subject = com.eduquiz.domain.pack.Subject.CIENCIAS,
+                        onClick = { viewModel.startExam(com.eduquiz.domain.pack.Subject.CIENCIAS) },
+                        enabled = !state.isBusy,
+                        isLoading = state.isBusy
+                    )
                 }
             }
         }
@@ -484,6 +500,30 @@ private fun QuestionCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SubjectButton(
+    subject: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    isLoading: Boolean
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .size(18.dp),
+                strokeWidth = 2.dp
+            )
+        }
+        Text(text = com.eduquiz.domain.pack.Subject.getDisplayName(subject))
     }
 }
 

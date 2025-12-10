@@ -281,6 +281,13 @@ interface ContentDao {
     @Query("SELECT * FROM question_entity WHERE packId = :packId")
     suspend fun getQuestionsByPack(packId: String): List<QuestionEntity>
 
+    @Query("""
+        SELECT q.* FROM question_entity q
+        INNER JOIN text_entity t ON q.textId = t.textId
+        WHERE q.packId = :packId AND t.subject = :subject
+    """)
+    suspend fun getQuestionsByPackAndSubject(packId: String, subject: String): List<QuestionEntity>
+
     @Query("SELECT * FROM option_entity WHERE questionId = :questionId")
     suspend fun getOptionsByQuestion(questionId: String): List<OptionEntity>
 }

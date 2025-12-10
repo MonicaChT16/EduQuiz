@@ -65,14 +65,50 @@ class ExamViewModel @Inject constructor(
         }
     }
 
-    fun startExam() {
+    fun startExam(subject: String? = null) {
         if (_state.value.stage == ExamStage.InProgress) return
         val uid = userId ?: return
         val pack = _state.value.pack ?: return
-        if (_state.value.questions.isEmpty()) {
-            _state.update { it.copy(errorMessage = "No hay preguntas disponibles para este pack.") }
-            return
+        
+        viewModelScope.launch {
+            _state.update { it.copy(isBusy = true, errorMessage = null) }
+            
+            // Si se especifica una materia, cargar solo preguntas de esa materia
+            val questions = if (subject != null) {
+                runCatching { prepareQuestions(pack.packId, subject) }.getOrElse { throwable ->
+                    _state.update {
+                        it.copy(
+                            isBusy = false,
+                            errorMessage = throwable.localizedMessage ?: "No hay preguntas disponibles para ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)}."
+                        )
+                    }
+                    return@launch
+                }
+            } else {
+                _state.value.questions
+            }
+            
+            if (questions.isEmpty()) {
+                _state.update { 
+                    it.copy(
+                        isBusy = false,
+                        errorMessage = "No hay preguntas disponibles para este pack."
+                    ) 
+                }
+                return@launch
+            }
+            
+            _state.update { it.copy(questions = questions) }
+            
+            startExamInternal()
         }
+    }
+    
+    private fun startExamInternal() {
+        val uid = userId ?: return
+        val pack = _state.value.pack ?: return
+        val questions = _state.value.questions
+        if (questions.isEmpty()) return
 
         viewModelScope.launch {
             _state.update { it.copy(isBusy = true, errorMessage = null) }
@@ -304,10 +340,14 @@ class ExamViewModel @Inject constructor(
         }
     }
 
-    private suspend fun prepareQuestions(packId: String): List<ExamContent> {
+    private suspend fun prepareQuestions(packId: String, subject: String? = null): List<ExamContent> {
         val texts = packRepository.getTextsForPack(packId).associateBy { it.textId }
-        val questions = packRepository.getQuestionsForPack(packId).sortedBy { it.questionId }
-        if (questions.isEmpty()) error("El pack no tiene preguntas almacenadas.")
+        val questions = if (subject != null) {
+            packRepository.getQuestionsForPackBySubject(packId, subject).sortedBy { it.questionId }
+        } else {
+            packRepository.getQuestionsForPack(packId).sortedBy { it.questionId }
+        }
+        if (questions.isEmpty()) error("El pack no tiene preguntas almacenadas${if (subject != null) " para ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)}" else ""}.")
 
         return questions.map { question ->
             val text = texts[question.textId]
@@ -502,10 +542,20 @@ class ExamViewModel @Inject constructor(
             _state.update { it.copy(isLoadingPack = true, errorMessage = null) }
             val availablePack = runCatching { packRepository.fetchCurrentPackMeta() }
                 .getOrElse { throwable ->
+                    android.util.Log.e("ExamViewModel", "Error fetching pack meta", throwable)
+                    val errorMsg = when {
+                        throwable.message?.contains("Missing or insufficient permissions") == true -> 
+                            "Error de permisos en Firestore. Verifica las reglas de seguridad."
+                        throwable.message?.contains("network") == true || throwable.message?.contains("Network") == true -> 
+                            "Error de conexión. Verifica tu conexión a internet."
+                        throwable.message?.contains("google-services.json") == true || throwable.message?.contains("FirebaseApp") == true -> 
+                            "Error de configuración de Firebase. Verifica google-services.json"
+                        else -> throwable.localizedMessage ?: "Error al buscar packs disponibles: ${throwable.javaClass.simpleName}"
+                    }
                     _state.update {
                         it.copy(
                             isLoadingPack = false,
-                            errorMessage = throwable.localizedMessage ?: "Error al buscar packs disponibles."
+                            errorMessage = errorMsg
                         )
                     }
                     null
