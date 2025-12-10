@@ -8,6 +8,7 @@ import com.eduquiz.domain.exam.ExamOrigin
 import com.eduquiz.domain.exam.ExamRepository
 import com.eduquiz.domain.exam.ExamStatus
 import com.eduquiz.feature.exam.ExamResult
+import com.eduquiz.feature.exam.QuestionReview
 import com.eduquiz.domain.achievements.AchievementEngine
 import com.eduquiz.domain.achievements.AchievementEvent
 import com.eduquiz.domain.pack.Pack
@@ -44,6 +45,9 @@ class ExamViewModel @Inject constructor(
 
     private val _resultState = MutableStateFlow<ExamResult?>(null)
     val resultState: StateFlow<ExamResult?> = _resultState.asStateFlow()
+
+    private val _reviewData = MutableStateFlow<List<QuestionReview>>(emptyList())
+    val reviewData: StateFlow<List<QuestionReview>> = _reviewData.asStateFlow()
 
     private val answers = mutableMapOf<String, ExamAnswer>()
     private var attempt: ExamAttempt? = null
@@ -458,7 +462,38 @@ class ExamViewModel @Inject constructor(
                     finishedAtLocal = finishedAttempt.finishedAtLocal,
                     totalQuestions = _state.value.totalQuestions
                 )
+                
+                // Cargar datos de revisión
+                loadReviewData(attemptId, finishedAttempt.packId, answers)
             }
+        }
+    }
+
+    private suspend fun loadReviewData(attemptId: String, packId: String, answers: List<ExamAnswer>) {
+        try {
+            val pack = packRepository.getPackById(packId) ?: return
+            val questions = packRepository.getQuestionsForPack(packId)
+            val texts = packRepository.getTextsForPack(packId)
+            val textsMap = texts.associateBy { it.textId }
+            val answersMap = answers.associateBy { it.questionId }
+            
+            val reviewItems = questions.mapNotNull { question ->
+                val text = textsMap[question.textId] ?: return@mapNotNull null
+                val options = packRepository.getOptionsForQuestion(question.questionId)
+                val userAnswer = answersMap[question.questionId]
+                
+                QuestionReview(
+                    question = question,
+                    text = text,
+                    options = options,
+                    userAnswer = userAnswer,
+                    correctOptionId = question.correctOptionId
+                )
+            }
+            
+            _reviewData.value = reviewItems
+        } catch (e: Exception) {
+            android.util.Log.e("ExamViewModel", "Error loading review data", e)
         }
     }
 

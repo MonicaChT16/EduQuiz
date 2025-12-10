@@ -10,6 +10,17 @@ interface RankingRepository {
         schoolId: String,
         classroomId: String
     ): Flow<List<LeaderboardEntry>>
+    
+    /**
+     * Observa el leaderboard de un colegio por su código (school_code).
+     * Busca usuarios que tengan ese school_code en su perfil.
+     */
+    fun observeSchoolLeaderboard(schoolCode: String): Flow<List<LeaderboardEntry>>
+    
+    /**
+     * Observa el leaderboard nacional (todos los usuarios ordenados por puntaje descendente).
+     */
+    fun observeNationalLeaderboard(): Flow<List<LeaderboardEntry>>
 }
 
 

@@ -1,5 +1,6 @@
 package com.eduquiz.feature.exam
 
+import com.eduquiz.domain.exam.ExamAnswer
 import com.eduquiz.domain.pack.Option
 import com.eduquiz.domain.pack.Pack
 import com.eduquiz.domain.pack.PackMeta
@@ -54,4 +55,12 @@ data class ExamResult(
     val answeredCount: Int,
     val finishedAtLocal: Long?,
     val totalQuestions: Int
+)
+
+data class QuestionReview(
+    val question: Question,
+    val text: TextContent,
+    val options: List<Option>,
+    val userAnswer: ExamAnswer?,
+    val correctOptionId: String
 )

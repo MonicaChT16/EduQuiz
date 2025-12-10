@@ -3,7 +3,10 @@ package com.eduquiz.data.remote
 import com.eduquiz.data.db.ExamAnswerEntity
 import com.eduquiz.data.db.ExamAttemptEntity
 import com.eduquiz.data.db.UserProfileEntity
+import com.eduquiz.domain.exam.ExamRepository
+import com.eduquiz.domain.exam.ExamStatus
 import com.eduquiz.domain.profile.SyncState
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
@@ -19,7 +22,9 @@ import javax.inject.Singleton
  */
 @Singleton
 class FirestoreSyncService @Inject constructor(
-    private val firestore: FirebaseFirestore
+    private val firestore: FirebaseFirestore,
+    private val examRepository: ExamRepository,
+    private val firebaseAuth: FirebaseAuth
 ) {
     /**
      * Sincroniza un intento de examen y sus respuestas a Firestore.
@@ -92,10 +97,65 @@ class FirestoreSyncService @Inject constructor(
     }
 
     /**
+     * Calcula las estadísticas de ranking del usuario.
+     * Retorna: (accuracy, totalAttempts, totalCorrectAnswers, totalQuestions)
+     */
+    private suspend fun calculateRankingStats(uid: String): RankingStats {
+        return try {
+            val attempts = examRepository.getAttempts(uid)
+            val completedAttempts = attempts.filter { 
+                it.status == ExamStatus.COMPLETED || it.status == ExamStatus.AUTO_SUBMIT 
+            }
+            val totalAttempts = completedAttempts.size
+            
+            var totalCorrect = 0
+            var totalQuestions = 0
+            
+            completedAttempts.forEach { attempt ->
+                val answers = examRepository.getAnswersForAttempt(attempt.attemptId)
+                totalQuestions += answers.size
+                totalCorrect += answers.count { it.isCorrect }
+            }
+            
+            val accuracy = if (totalQuestions > 0) {
+                (totalCorrect.toFloat() / totalQuestions.toFloat()) * 100f
+            } else {
+                0f
+            }
+            
+            RankingStats(
+                accuracy = accuracy,
+                totalAttempts = totalAttempts,
+                totalCorrectAnswers = totalCorrect,
+                totalQuestions = totalQuestions
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("FirestoreSyncService", "Error calculating ranking stats for $uid", e)
+            RankingStats(0f, 0, 0, 0)
+        }
+    }
+    
+    /**
+     * Datos de estadísticas de ranking calculadas.
+     */
+    private data class RankingStats(
+        val accuracy: Float,
+        val totalAttempts: Int,
+        val totalCorrectAnswers: Int,
+        val totalQuestions: Int
+    )
+
+    /**
      * Sincroniza el perfil del usuario a Firestore.
      * Ruta: users/{uid}
      * 
      * Regla: última escritura gana - comparar updatedAtLocal antes de escribir.
+     * 
+     * Incluye todos los campos del diseño:
+     * - Datos básicos: uid, displayName, email, photoUrl
+     * - Datos de colegio: schoolCode (del schoolId), schoolId, classroomId
+     * - Métricas de ranking: totalXp, averageAccuracy, totalAttempts, totalCorrectAnswers, totalQuestions
+     * - Otros: coins, selectedCosmeticId, timestamps
      * 
      * @return true si la sincronización fue exitosa, false en caso contrario
      */
@@ -113,20 +173,50 @@ class FirestoreSyncService @Inject constructor(
 
             // Solo escribir si el local es más reciente o igual (última escritura gana)
             if (profile.updatedAtLocal >= remoteUpdatedAt) {
+                // Calcular estadísticas de ranking
+                val stats = calculateRankingStats(profile.uid)
+                
+                // Obtener email del usuario actual de Firebase Auth
+                val currentUser = firebaseAuth.currentUser
+                val userEmail = currentUser?.email ?: ""
+                
+                // schoolCode: usar schoolId como código de colegio (el usuario lo ingresa manualmente)
+                // Si schoolId está vacío, schoolCode también estará vacío
+                val schoolCode = profile.schoolId.takeIf { it.isNotBlank() } ?: ""
+                
                 val profileData = mapOf(
+                    // Datos básicos del usuario
                     "uid" to profile.uid,
                     "displayName" to profile.displayName,
+                    "email" to userEmail,
                     "photoUrl" to profile.photoUrl,
+                    
+                    // Datos de colegio
+                    "schoolCode" to schoolCode,  // Código de colegio/UGEL (ingresado manualmente)
                     "schoolId" to profile.schoolId,
                     "classroomId" to profile.classroomId,
+                    
+                    // Monedas y XP
                     "coins" to profile.coins,
                     "xp" to profile.xp,
+                    
+                    // Métricas de ranking (pre-calculadas para consultas rápidas)
+                    "totalXp" to profile.xp.toLong(),  // XP total acumulado
+                    "totalScore" to profile.xp.toInt(), // Compatibilidad con código existente
+                    "averageAccuracy" to stats.accuracy,  // Promedio de aciertos (%)
+                    "totalAttempts" to stats.totalAttempts,  // Total de exámenes completados
+                    "totalCorrectAnswers" to stats.totalCorrectAnswers,  // Total de respuestas correctas
+                    "totalQuestions" to stats.totalQuestions,  // Total de preguntas respondidas
+                    
+                    // Otros campos
                     "selectedCosmeticId" to profile.selectedCosmeticId,
                     "updatedAtLocal" to profile.updatedAtLocal,
                     "syncState" to SyncState.SYNCED,
                     "lastSyncedAt" to System.currentTimeMillis()
                 )
+                
                 profileRef.set(profileData, SetOptions.merge()).await()
+                android.util.Log.d("FirestoreSyncService", "Successfully synced user profile ${profile.uid} to Firestore")
                 true
             } else {
                 // El remoto es más reciente, no sobrescribir
