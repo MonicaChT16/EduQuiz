@@ -101,6 +101,8 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Header con perfil, XP, monedas y notificaciones
             HomeHeader(
@@ -108,44 +110,38 @@ fun HomeScreen(
                 onNotificationClick = { onNavigate(RootDestination.Notifications) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
             )
-
-            Spacer(modifier = Modifier.height(32.dp))
 
             // Título PISA
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = "Evaluación Internacional de Estudiantes",
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.White,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "PISA",
                     style = MaterialTheme.typography.displayLarge,
                     color = Color.White,
-                    fontSize = 72.sp,
+                    fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
 
             // Cuerpo principal con GIF del robot y botón tienda
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(320.dp)
-                    .padding(horizontal = 16.dp),
+                    .height(220.dp),
                 contentAlignment = Alignment.Center
             ) {
                 // GIF del robot
@@ -155,7 +151,7 @@ fun HomeScreen(
                     imageLoader = imageLoader, // Usar el ImageLoader personalizado
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(280.dp)
+                        .height(190.dp)
                         .clip(RoundedCornerShape(24.dp))
                 )
 
@@ -164,7 +160,7 @@ fun HomeScreen(
                     onClick = { onNavigate(RootDestination.Store) },
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .size(80.dp),
+                        .size(64.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4A5F8F).copy(alpha = 0.9f)
@@ -191,14 +187,11 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
 
             // Recuadro PISA con información y botón Jugar ahora
             Card(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp),
+                    .fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = Color(0xFF4A5F8F).copy(alpha = 0.8f)
@@ -208,7 +201,7 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -234,7 +227,7 @@ fun HomeScreen(
                         onClick = { showSubjectDialog = true },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp),
+                            .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF00CC44) // Verde brillante como en la imagen
