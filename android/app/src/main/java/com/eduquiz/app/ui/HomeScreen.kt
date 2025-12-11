@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -101,6 +103,8 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Header con perfil, XP, monedas y notificaciones
             HomeHeader(
@@ -108,44 +112,38 @@ fun HomeScreen(
                 onNotificationClick = { onNavigate(RootDestination.Notifications) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
             )
-
-            Spacer(modifier = Modifier.height(32.dp))
 
             // Título PISA
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = "Evaluación Internacional de Estudiantes",
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.White,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "PISA",
                     style = MaterialTheme.typography.displayLarge,
                     color = Color.White,
-                    fontSize = 72.sp,
+                    fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
 
             // Cuerpo principal con GIF del robot y botón tienda
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(320.dp)
-                    .padding(horizontal = 16.dp),
+                    .height(220.dp),
                 contentAlignment = Alignment.Center
             ) {
                 // GIF del robot
@@ -155,7 +153,7 @@ fun HomeScreen(
                     imageLoader = imageLoader, // Usar el ImageLoader personalizado
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(280.dp)
+                        .height(190.dp)
                         .clip(RoundedCornerShape(24.dp))
                 )
 
@@ -164,7 +162,8 @@ fun HomeScreen(
                     onClick = { onNavigate(RootDestination.Store) },
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .size(80.dp),
+                        .width(80.dp)
+                        .height(64.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4A5F8F).copy(alpha = 0.9f)
@@ -191,14 +190,11 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
 
             // Recuadro PISA con información y botón Jugar ahora
             Card(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 24.dp),
+                    .fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = Color(0xFF4A5F8F).copy(alpha = 0.8f)
@@ -208,7 +204,7 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -234,7 +230,7 @@ fun HomeScreen(
                         onClick = { showSubjectDialog = true },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp),
+                            .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF00CC44) // Verde brillante como en la imagen
@@ -262,9 +258,24 @@ private fun SubjectSelectionDialog(
     onDismiss: () -> Unit
 ) {
     val options = listOf(
-        SubjectOption("Matemáticas", Icons.Default.School, Color(0xFF4CAF50)),
-        SubjectOption("Comprensión lectora", Icons.Default.MenuBook, Color(0xFF3F51B5)),
-        SubjectOption("Ciencias", Icons.Default.Science, Color(0xFF009688))
+        SubjectOption(
+            "Matemáticas",
+            Icons.Default.School,
+            Color(0xFF4CAF50),
+            "¡Afila tu ingenio! Resuelve problemas y domina los números."
+        ),
+        SubjectOption(
+            "Comprensión lectora",
+            Icons.Default.MenuBook,
+            Color(0xFF3F51B5),
+            "Desentraña el significado oculto. Lee, interpreta y comprende textos."
+        ),
+        SubjectOption(
+            "Ciencias",
+            Icons.Default.Science,
+            Color(0xFF009688),
+            "Explora el mundo que te rodea. Descubre los secretos de la naturaleza y el universo."
+        )
     )
 
     Dialog(onDismissRequest = onDismiss) {
@@ -371,7 +382,7 @@ private fun SubjectOptionCard(
                     color = Color(0xFF0F172A)
                 )
                 Text(
-                    text = "Explora desafíos y preguntas clave",
+                    text = option.description,
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF5C6476)
                 )
@@ -383,7 +394,8 @@ private fun SubjectOptionCard(
 private data class SubjectOption(
     val title: String,
     val icon: ImageVector,
-    val color: Color
+    val color: Color,
+    val description: String
 )
 
 @Composable
@@ -476,7 +488,7 @@ fun HomeHeader(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.ShoppingCart,
+                    imageVector = Icons.Default.Star,
                     contentDescription = "XP",
                     modifier = Modifier.size(18.dp),
                     tint = Color(0xFFFFD700)
@@ -507,7 +519,7 @@ fun HomeHeader(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.ShoppingCart,
+                    imageVector = Icons.Default.MonetizationOn,
                     contentDescription = "Monedas",
                     modifier = Modifier.size(18.dp),
                     tint = Color(0xFFFFD700)

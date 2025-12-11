@@ -1,6 +1,7 @@
 package com.eduquiz.feature.auth.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,12 +24,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.eduquiz.feature.auth.R
 import com.eduquiz.feature.auth.presentation.OnboardingViewModel
 
 @Composable
@@ -64,7 +67,6 @@ fun OnboardingScreen(
     val deepBlue = Color(0xFF0D47A1)
     val lightBlue = Color(0xFF1565C0)
     val white = Color.White
-    val lightGray = Color(0xFFF0F0F0)
 
     val onboardingSteps = listOf(
         OnboardingStep(
@@ -118,22 +120,11 @@ fun OnboardingScreen(
                     textAlign = TextAlign.Center
                 )
 
-                // Image placeholder - Robot space
-                Box(
-                    modifier = Modifier
-                        .size(200.dp)
-                        .background(
-                            color = white.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(20.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "🤖",
-                        fontSize = 100.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.robot_start),
+                    contentDescription = null,
+                    modifier = Modifier.size(220.dp)
+                )
 
                 // Description
                 Text(

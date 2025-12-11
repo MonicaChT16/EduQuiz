@@ -497,10 +497,30 @@ abstract class AppDatabase : RoomDatabase() {
             Migration(2, 3) { database ->
                 // Agregar campo subject a exam_attempt_entity (nullable para compatibilidad con intentos antiguos)
                 database.execSQL("ALTER TABLE exam_attempt_entity ADD COLUMN subject TEXT")
+                // Crear tabla onboarding_preferences_entity para almacenar si el usuario completó el onboarding
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS onboarding_preferences_entity (
+                        id INTEGER NOT NULL,
+                        hasCompletedOnboarding INTEGER NOT NULL,
+                        PRIMARY KEY(id)
+                    )
+                    """.trimIndent()
+                )
             },
             Migration(3, 4) { database ->
                 // Agregar campo ugelCode a user_profile_entity (nullable para compatibilidad con perfiles antiguos)
                 database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN ugelCode TEXT")
+                // Garantizar existencia de la tabla de onboarding para instalaciones que ya estaban en la versión 3
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS onboarding_preferences_entity (
+                        id INTEGER NOT NULL,
+                        hasCompletedOnboarding INTEGER NOT NULL,
+                        PRIMARY KEY(id)
+                    )
+                    """.trimIndent()
+                )
             }
         )
     }
