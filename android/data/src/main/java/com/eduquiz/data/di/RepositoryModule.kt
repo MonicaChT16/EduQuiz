@@ -1,6 +1,7 @@
 package com.eduquiz.data.di
 
 import com.eduquiz.data.repository.ExamRepositoryImpl
+import com.eduquiz.data.repository.OnboardingRepository
 import com.eduquiz.data.repository.PackRepositoryImpl
 import com.eduquiz.data.repository.ProfileRepositoryImpl
 import com.eduquiz.data.repository.StoreRepositoryImpl
@@ -16,6 +17,7 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dagger.Provides
 import javax.inject.Singleton
 
 @Module
@@ -45,4 +47,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindStoreRepository(impl: StoreRepositoryImpl): StoreRepository
+
+    companion object {
+        @Provides
+        @Singleton
+        fun provideOnboardingRepository(database: com.eduquiz.data.db.AppDatabase): OnboardingRepository {
+            return OnboardingRepository(database)
+        }
+    }
 }

@@ -227,6 +227,12 @@ data class ExamAnswerEntity(
     val timeSpentMs: Long,
 )
 
+@Entity(tableName = "onboarding_preferences_entity")
+data class OnboardingPreferencesEntity(
+    @PrimaryKey val id: Int = 1,
+    val hasCompletedOnboarding: Boolean = false,
+)
+
 @Dao
 interface PackDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -443,6 +449,18 @@ interface ExamDao {
     suspend fun updateSyncState(attemptId: String, syncState: String)
 }
 
+@Dao
+interface OnboardingDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertOnboardingPreferences(entity: OnboardingPreferencesEntity)
+
+    @Query("SELECT * FROM onboarding_preferences_entity WHERE id = 1 LIMIT 1")
+    fun observeOnboardingPreferences(): Flow<OnboardingPreferencesEntity?>
+
+    @Query("SELECT * FROM onboarding_preferences_entity WHERE id = 1 LIMIT 1")
+    suspend fun getOnboardingPreferences(): OnboardingPreferencesEntity?
+}
+
 @Database(
     entities = [
         PackEntity::class,
@@ -455,6 +473,7 @@ interface ExamDao {
         DailyStreakEntity::class,
         ExamAttemptEntity::class,
         ExamAnswerEntity::class,
+        OnboardingPreferencesEntity::class,
     ],
     version = 4,
     exportSchema = true
@@ -466,6 +485,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun storeDao(): StoreDao
     abstract fun achievementsDao(): AchievementsDao
     abstract fun examDao(): ExamDao
+    abstract fun onboardingDao(): OnboardingDao
 
     companion object {
         const val NAME = "eduquiz.db"
@@ -477,10 +497,30 @@ abstract class AppDatabase : RoomDatabase() {
             Migration(2, 3) { database ->
                 // Agregar campo subject a exam_attempt_entity (nullable para compatibilidad con intentos antiguos)
                 database.execSQL("ALTER TABLE exam_attempt_entity ADD COLUMN subject TEXT")
+                // Crear tabla onboarding_preferences_entity para almacenar si el usuario completó el onboarding
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS onboarding_preferences_entity (
+                        id INTEGER NOT NULL,
+                        hasCompletedOnboarding INTEGER NOT NULL,
+                        PRIMARY KEY(id)
+                    )
+                    """.trimIndent()
+                )
             },
             Migration(3, 4) { database ->
                 // Agregar campo ugelCode a user_profile_entity (nullable para compatibilidad con perfiles antiguos)
                 database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN ugelCode TEXT")
+                // Garantizar existencia de la tabla de onboarding para instalaciones que ya estaban en la versión 3
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS onboarding_preferences_entity (
+                        id INTEGER NOT NULL,
+                        hasCompletedOnboarding INTEGER NOT NULL,
+                        PRIMARY KEY(id)
+                    )
+                    """.trimIndent()
+                )
             }
         )
     }

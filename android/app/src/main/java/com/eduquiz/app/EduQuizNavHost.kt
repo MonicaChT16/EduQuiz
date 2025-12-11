@@ -28,14 +28,17 @@ import androidx.navigation.compose.rememberNavController
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eduquiz.app.navigation.RootDestination
+import com.eduquiz.app.ui.AboutScreen
 import com.eduquiz.app.ui.HomeScreen
 import com.eduquiz.app.ui.NotificationsScreen
 import com.eduquiz.app.ui.SettingsScreen
 import com.eduquiz.app.ui.theme.EduQuizTheme
+import com.eduquiz.data.repository.OnboardingRepository
 import com.eduquiz.feature.auth.model.AuthUser
 import com.eduquiz.feature.auth.model.AuthState
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 import com.eduquiz.feature.auth.ui.LoginRoute
+import com.eduquiz.feature.auth.ui.OnboardingRoute
 import com.eduquiz.feature.exam.ExamFeature
 import com.eduquiz.feature.profile.ProfileFeature
 import com.eduquiz.feature.pack.PackFeature
@@ -43,7 +46,9 @@ import com.eduquiz.feature.ranking.RankingFeature
 import com.eduquiz.feature.store.StoreFeature
 
 @Composable
-fun EduQuizNavHost() {
+fun EduQuizNavHost(
+    onboardingRepository: OnboardingRepository
+) {
     EduQuizTheme {
         val authViewModel: AuthViewModel = hiltViewModel()
         val authState by authViewModel.state.collectAsStateWithLifecycle()
@@ -59,10 +64,24 @@ fun EduQuizNavHost() {
                         onLogout = { authViewModel.logout() }
                     )
                 }
-                else -> LoginRoute(
-                    modifier = Modifier.fillMaxSize(),
-                    viewModel = authViewModel
-                )
+                else -> {
+                    // Check if onboarding has been completed
+                    val hasCompletedOnboarding by onboardingRepository.hasCompletedOnboarding.collectAsStateWithLifecycle(initialValue = false)
+                    
+                    if (hasCompletedOnboarding) {
+                        LoginRoute(
+                            modifier = Modifier.fillMaxSize(),
+                            viewModel = authViewModel
+                        )
+                    } else {
+                        OnboardingRoute(
+                            modifier = Modifier.fillMaxSize(),
+                            onNavigateToLogin = {
+                                // After onboarding, user will see login screen on next auth state change
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -84,7 +103,7 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            if (currentRoute != RootDestination.Auth.route && currentRoute != RootDestination.Pack.route && currentRoute != RootDestination.Exam.route && currentRoute != RootDestination.Notifications.route) {
+            if (currentRoute != RootDestination.Auth.route && currentRoute != RootDestination.Pack.route && currentRoute != RootDestination.Exam.route && currentRoute != RootDestination.Notifications.route && currentRoute != RootDestination.About.route) {
                 BottomAppBar {
                     bottomNavItems.forEach { item ->
                         NavigationBarItem(
@@ -152,16 +171,32 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
                 )
             }
             composable(RootDestination.Settings.route) {
-                SettingsScreen()
+                SettingsScreen(
+                    onNavigate = { route ->
+                        when (route) {
+                            "about" -> navController.navigate(RootDestination.About.route)
+                            else -> {}
+                        }
+                    },
+                    onLogout = {
+                        navController.popBackStack(RootDestination.Home.route, inclusive = true)
+                        onLogout()
+                    }
+                )
+            }
+            composable(RootDestination.About.route) {
+                AboutScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
             composable(RootDestination.Notifications.route) {
                 NotificationsScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
-            // MERGE: Lista de exclusión actualizada para incluir Settings y Notifications
+            // MERGE: Lista de exclusión actualizada para incluir Settings, About y Notifications
             RootDestination.allDestinations
-                .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack, RootDestination.Exam, RootDestination.Store, RootDestination.Ranking, RootDestination.Settings, RootDestination.Notifications) }
+                .filter { it !in setOf(RootDestination.Home, RootDestination.Auth, RootDestination.Profile, RootDestination.Pack, RootDestination.Exam, RootDestination.Store, RootDestination.Ranking, RootDestination.Settings, RootDestination.About, RootDestination.Notifications) }
                 .forEach { destination ->
                     composable(destination.route) {
                         PlaceholderScreen(label = destination.title)
