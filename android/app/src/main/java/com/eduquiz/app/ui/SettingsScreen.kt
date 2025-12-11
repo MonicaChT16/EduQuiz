@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,10 +24,6 @@ import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -48,11 +43,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 
 @Composable
@@ -61,8 +54,6 @@ fun SettingsScreen(
     onLogout: () -> Unit = {},
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
-    val authState by authViewModel.state.collectAsStateWithLifecycle()
-    
     var notificationEnabled by remember { mutableStateOf(true) }
     var selectedLanguage by remember { mutableStateOf("Español") }
 
@@ -190,13 +181,6 @@ fun SettingsScreen(
                 fontWeight = FontWeight.Medium
             )
         }
-
-        // Bottom Navigation
-        BottomNavigationBar(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            selectedTab = 3, // Settings tab
-            onTabSelected = { /* TODO: Handle navigation */ }
-        )
     }
 }
 
@@ -313,84 +297,5 @@ private fun ModernLanguageSelector(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun BottomNavigationBar(
-    modifier: Modifier = Modifier,
-    selectedTab: Int,
-    onTabSelected: (Int) -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(80.dp),
-        color = Color.White.copy(alpha = 0.95f),
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BottomNavItem(
-                icon = Icons.Default.Home,
-                label = "Inicio",
-                isSelected = selectedTab == 0,
-                onClick = { onTabSelected(0) }
-            )
-            BottomNavItem(
-                icon = Icons.Default.Person,
-                label = "Perfil",
-                isSelected = selectedTab == 1,
-                onClick = { onTabSelected(1) }
-            )
-            BottomNavItem(
-                icon = Icons.Default.EmojiEvents,
-                label = "Tabla de\nclasificación",
-                isSelected = selectedTab == 2,
-                onClick = { onTabSelected(2) }
-            )
-            BottomNavItem(
-                icon = Icons.Default.Settings,
-                label = "Ajustes",
-                isSelected = selectedTab == 3,
-                onClick = { onTabSelected(3) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun BottomNavItem(
-    icon: ImageVector,
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clickable { onClick() }
-            .padding(4.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = if (isSelected) Color.Black else Color.Gray,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            color = if (isSelected) Color.Black else Color.Gray,
-            fontSize = 10.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            textAlign = TextAlign.Center,
-            lineHeight = 12.sp
-        )
     }
 }

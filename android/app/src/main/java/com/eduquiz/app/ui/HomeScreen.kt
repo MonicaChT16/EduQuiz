@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material3.Button
@@ -139,7 +138,7 @@ fun HomeScreen(
             }
 
 
-            // Cuerpo principal con GIF del robot y botón tienda
+            // Cuerpo principal con GIF del robot
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -157,37 +156,6 @@ fun HomeScreen(
                         .clip(RoundedCornerShape(24.dp))
                 )
 
-                // Botón Tienda - fijo en la esquina superior derecha
-                Button(
-                    onClick = { onNavigate(RootDestination.Store) },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .width(80.dp)
-                        .height(64.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4A5F8F).copy(alpha = 0.9f)
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ShoppingCart,
-                            contentDescription = "Tienda",
-                            modifier = Modifier.size(24.dp),
-                            tint = Color.White
-                        )
-                        Text(
-                            text = "Tienda",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White,
-                            fontSize = 10.sp
-                        )
-                    }
-                }
             }
 
 
