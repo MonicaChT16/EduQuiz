@@ -267,6 +267,9 @@ interface PackDao {
 
     @Query("SELECT * FROM pack_entity WHERE status = :status LIMIT 1")
     fun observeByStatus(status: String = PackStatus.ACTIVE): Flow<PackEntity?>
+    
+    @Query("SELECT * FROM pack_entity WHERE status = :status LIMIT 1")
+    suspend fun findByStatus(status: String = PackStatus.ACTIVE): PackEntity?
 }
 
 @Dao
