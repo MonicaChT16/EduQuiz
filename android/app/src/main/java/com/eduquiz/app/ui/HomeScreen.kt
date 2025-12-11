@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -160,7 +162,8 @@ fun HomeScreen(
                     onClick = { onNavigate(RootDestination.Store) },
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .size(64.dp),
+                        .width(80.dp)
+                        .height(64.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4A5F8F).copy(alpha = 0.9f)
@@ -255,9 +258,24 @@ private fun SubjectSelectionDialog(
     onDismiss: () -> Unit
 ) {
     val options = listOf(
-        SubjectOption("Matemáticas", Icons.Default.School, Color(0xFF4CAF50)),
-        SubjectOption("Comprensión lectora", Icons.Default.MenuBook, Color(0xFF3F51B5)),
-        SubjectOption("Ciencias", Icons.Default.Science, Color(0xFF009688))
+        SubjectOption(
+            "Matemáticas",
+            Icons.Default.School,
+            Color(0xFF4CAF50),
+            "¡Afila tu ingenio! Resuelve problemas y domina los números."
+        ),
+        SubjectOption(
+            "Comprensión lectora",
+            Icons.Default.MenuBook,
+            Color(0xFF3F51B5),
+            "Desentraña el significado oculto. Lee, interpreta y comprende textos."
+        ),
+        SubjectOption(
+            "Ciencias",
+            Icons.Default.Science,
+            Color(0xFF009688),
+            "Explora el mundo que te rodea. Descubre los secretos de la naturaleza y el universo."
+        )
     )
 
     Dialog(onDismissRequest = onDismiss) {
@@ -364,7 +382,7 @@ private fun SubjectOptionCard(
                     color = Color(0xFF0F172A)
                 )
                 Text(
-                    text = "Explora desafíos y preguntas clave",
+                    text = option.description,
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF5C6476)
                 )
@@ -376,7 +394,8 @@ private fun SubjectOptionCard(
 private data class SubjectOption(
     val title: String,
     val icon: ImageVector,
-    val color: Color
+    val color: Color,
+    val description: String
 )
 
 @Composable
@@ -469,7 +488,7 @@ fun HomeHeader(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.ShoppingCart,
+                    imageVector = Icons.Default.Star,
                     contentDescription = "XP",
                     modifier = Modifier.size(18.dp),
                     tint = Color(0xFFFFD700)
@@ -500,7 +519,7 @@ fun HomeHeader(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.ShoppingCart,
+                    imageVector = Icons.Default.MonetizationOn,
                     contentDescription = "Monedas",
                     modifier = Modifier.size(18.dp),
                     tint = Color(0xFFFFD700)
