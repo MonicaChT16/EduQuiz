@@ -64,6 +64,8 @@ import com.eduquiz.app.R // Importación para acceder a los recursos
 import com.eduquiz.app.navigation.RootDestination
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 import com.eduquiz.feature.auth.model.AuthState
+import com.eduquiz.domain.pack.Subject
+import com.eduquiz.feature.exam.ExamNavigationHelper
 
 @Composable
 fun HomeScreen(
@@ -89,7 +91,19 @@ fun HomeScreen(
         SubjectSelectionDialog(
             selectedSubject = selectedSubject,
             onSubjectSelected = { selectedSubject = it },
-            onStart = { showSubjectDialog = false },
+            onStart = {
+                val subjectCode = selectedSubject?.let { getSubjectCodeFromDisplayName(it) }
+                if (subjectCode != null) {
+                    android.util.Log.d("HomeScreen", "Navigating to exam with subject: $subjectCode")
+                    // Guardar la materia para que ExamFeature la use
+                    ExamNavigationHelper.setPendingSubject(subjectCode)
+                    showSubjectDialog = false
+                    // Navegar al examen - ExamFeature iniciará automáticamente el examen con la materia
+                    onNavigate(RootDestination.Exam)
+                } else {
+                    android.util.Log.e("HomeScreen", "Could not convert subject name to code: $selectedSubject")
+                }
+            },
             onDismiss = { showSubjectDialog = false }
         )
     }
@@ -397,6 +411,27 @@ private data class SubjectOption(
     val color: Color,
     val description: String
 )
+
+/**
+ * Convierte el nombre de la materia (ej: "Matemáticas") al código (ej: Subject.MATEMATICA)
+ */
+private fun getSubjectCodeFromDisplayName(displayName: String): String? {
+    return when (displayName) {
+        "Matemáticas" -> Subject.MATEMATICA
+        "Comprensión lectora" -> Subject.COMPRENSION_LECTORA
+        "Ciencias" -> Subject.CIENCIAS
+        else -> {
+            // Intentar buscar por coincidencia parcial
+            when {
+                displayName.contains("Matemática", ignoreCase = true) -> Subject.MATEMATICA
+                displayName.contains("Comprensión", ignoreCase = true) || 
+                displayName.contains("lectora", ignoreCase = true) -> Subject.COMPRENSION_LECTORA
+                displayName.contains("Ciencia", ignoreCase = true) -> Subject.CIENCIAS
+                else -> null
+            }
+        }
+    }
+}
 
 @Composable
 fun HomeHeader(

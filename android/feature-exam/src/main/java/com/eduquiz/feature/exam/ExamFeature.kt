@@ -5,6 +5,7 @@ import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,23 @@ import com.eduquiz.domain.exam.ExamStatus
 import com.eduquiz.feature.exam.ExamResult
 import com.eduquiz.feature.exam.QuestionReview
 
+// Objeto compartido para pasar la materia desde HomeScreen
+object ExamNavigationHelper {
+    @Volatile
+    var pendingSubject: String? = null
+        private set
+    
+    fun setPendingSubject(subject: String?) {
+        pendingSubject = subject
+    }
+    
+    fun getAndClearPendingSubject(): String? {
+        val subject = pendingSubject
+        pendingSubject = null
+        return subject
+    }
+}
+
 @Composable
 fun ExamFeature(
     uid: String,
@@ -61,7 +79,23 @@ fun ExamFeature(
     viewModel: ExamViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(uid) { viewModel.initialize(uid) }
+    
+    // Inicializar solo una vez cuando cambia el uid
+    LaunchedEffect(uid) { 
+        android.util.Log.d("ExamFeature", "LaunchedEffect triggered with uid: $uid")
+        viewModel.initialize(uid) 
+    }
+    
+    // Verificar si hay una materia pendiente para iniciar el examen automáticamente
+    LaunchedEffect(state.stage, state.pack) {
+        if (state.stage == ExamStage.Start && state.pack != null) {
+            val pendingSubject = ExamNavigationHelper.getAndClearPendingSubject()
+            if (pendingSubject != null) {
+                android.util.Log.d("ExamFeature", "Auto-starting exam with subject: $pendingSubject")
+                viewModel.startExam(pendingSubject)
+            }
+        }
+    }
 
     when (state.stage) {
         ExamStage.Loading -> LoadingScreen(modifier)
@@ -103,38 +137,51 @@ private fun ExamStartScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = "Simulacro PISA", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                text = "Simulacro PISA",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
             Text(
                 text = "10 preguntas, 20 minutos. Las capturas se bloquearán y salir de la app dos veces anula el intento.",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
             
             // Card del Pack Activo
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+            if (state.pack != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
-                    Text(
-                        text = state.pack?.weekLabel ?: "Sin pack activo",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    Text(
-                        text = "ID: ${state.pack?.packId ?: "--"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Preguntas: ${state.totalQuestions.takeIf { it > 0 } ?: "No disponibles"}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = state.pack.weekLabel,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "ID: ${state.pack.packId}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "Preguntas disponibles: ${state.totalQuestions}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
             }
 
@@ -161,18 +208,27 @@ private fun ExamStartScreen(
                 }
             }
 
-            // Mensaje de error
-            if (state.errorMessage != null) {
-                Text(
-                    text = state.errorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium
+            // Indicador de carga
+            if (state.isLoadingPack || state.isDownloading || state.isBusy) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
 
-            // Indicador de carga
-            if (state.isLoadingPack || state.isDownloading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            // Mensaje de error
+            if (state.errorMessage != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Text(
+                        text = state.errorMessage,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
             }
 
             // Botones de acción
@@ -213,27 +269,37 @@ private fun ExamStartScreen(
                     Text(
                         text = "Selecciona una materia:",
                         style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     
                     SubjectButton(
                         subject = com.eduquiz.domain.pack.Subject.MATEMATICA,
-                        onClick = { viewModel.startExam(com.eduquiz.domain.pack.Subject.MATEMATICA) },
-                        enabled = !state.isBusy,
+                        onClick = { 
+                            android.util.Log.d("ExamFeature", "Matemática button clicked")
+                            viewModel.startExam(com.eduquiz.domain.pack.Subject.MATEMATICA) 
+                        },
+                        enabled = !state.isBusy && state.totalQuestions > 0,
                         isLoading = state.isBusy
                     )
                     
                     SubjectButton(
                         subject = com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA,
-                        onClick = { viewModel.startExam(com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA) },
-                        enabled = !state.isBusy,
+                        onClick = { 
+                            android.util.Log.d("ExamFeature", "Comprensión lectora button clicked")
+                            viewModel.startExam(com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA) 
+                        },
+                        enabled = !state.isBusy && state.totalQuestions > 0,
                         isLoading = state.isBusy
                     )
                     
                     SubjectButton(
                         subject = com.eduquiz.domain.pack.Subject.CIENCIAS,
-                        onClick = { viewModel.startExam(com.eduquiz.domain.pack.Subject.CIENCIAS) },
-                        enabled = !state.isBusy,
+                        onClick = { 
+                            android.util.Log.d("ExamFeature", "Ciencias button clicked")
+                            viewModel.startExam(com.eduquiz.domain.pack.Subject.CIENCIAS) 
+                        },
+                        enabled = !state.isBusy && state.totalQuestions > 0,
                         isLoading = state.isBusy
                     )
                 }
@@ -510,20 +576,54 @@ private fun SubjectButton(
     enabled: Boolean,
     isLoading: Boolean
 ) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.fillMaxWidth()
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (enabled && !isLoading) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (enabled) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (enabled) 2.dp else 0.dp
+        )
     ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .padding(end = 8.dp)
-                    .size(18.dp),
-                strokeWidth = 2.dp
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .padding(end = 12.dp)
+                        .size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+            Text(
+                text = com.eduquiz.domain.pack.Subject.getDisplayName(subject),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                }
             )
         }
-        Text(text = com.eduquiz.domain.pack.Subject.getDisplayName(subject))
     }
 }
 

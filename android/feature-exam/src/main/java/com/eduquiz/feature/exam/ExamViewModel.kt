@@ -59,44 +59,113 @@ class ExamViewModel @Inject constructor(
     private var currentSubject: String? = null
 
     fun initialize(uid: String) {
-        if (userId != null) return
+        android.util.Log.d("ExamViewModel", "initialize called with uid: $uid")
+        if (userId != null) {
+            android.util.Log.d("ExamViewModel", "Already initialized with userId: $userId")
+            return
+        }
         userId = uid
+        android.util.Log.d("ExamViewModel", "Setting userId to: $uid")
         viewModelScope.launch {
+            android.util.Log.d("ExamViewModel", "Starting loadInitialState")
             loadInitialState()
         }
     }
 
     fun startExam(subject: String? = null) {
-        if (_state.value.stage == ExamStage.InProgress) return
-        val uid = userId ?: return
-        val pack = _state.value.pack ?: return
+        if (_state.value.stage == ExamStage.InProgress) {
+            android.util.Log.w("ExamViewModel", "startExam: Exam already in progress")
+            return
+        }
         
         viewModelScope.launch {
+            android.util.Log.d("ExamViewModel", "startExam: Starting with subject=$subject")
             _state.update { it.copy(isBusy = true, errorMessage = null) }
+            
+            // Validar que tenemos userId
+            val uid = userId
+            if (uid == null) {
+                android.util.Log.e("ExamViewModel", "startExam: userId is null")
+                _state.update {
+                    it.copy(
+                        isBusy = false,
+                        errorMessage = "Error: Usuario no identificado. Por favor, cierra sesión y vuelve a iniciar sesión."
+                    )
+                }
+                return@launch
+            }
+            
+            // Validar que tenemos pack - si no hay, intentar cargarlo de nuevo
+            var pack = _state.value.pack
+            if (pack == null) {
+                android.util.Log.w("ExamViewModel", "startExam: pack is null, trying to load from database")
+                pack = packRepository.getActivePack()
+                if (pack == null) {
+                    android.util.Log.e("ExamViewModel", "startExam: No pack found in database")
+                    _state.update {
+                        it.copy(
+                            isBusy = false,
+                            errorMessage = "No hay pack activo. Por favor, descarga un pack primero."
+                        )
+                    }
+                    return@launch
+                }
+                // Actualizar el estado con el pack encontrado
+                _state.update { it.copy(pack = pack) }
+            }
             
             // Guardar la materia actual
             currentSubject = subject
             
+            android.util.Log.d("ExamViewModel", "startExam: packId=${pack.packId}, subject=$subject")
+            
             // Si se especifica una materia, cargar solo preguntas de esa materia (máximo 10)
             val questions = if (subject != null) {
-                runCatching { prepareQuestions(pack.packId, subject) }.getOrElse { throwable ->
+                runCatching { 
+                    android.util.Log.d("ExamViewModel", "Loading questions for subject: $subject")
+                    prepareQuestions(pack.packId, subject) 
+                }.getOrElse { throwable ->
+                    android.util.Log.e("ExamViewModel", "Error preparing questions for subject $subject", throwable)
                     _state.update {
                         it.copy(
                             isBusy = false,
-                            errorMessage = throwable.localizedMessage ?: "No hay preguntas disponibles para ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)}."
+                            errorMessage = throwable.localizedMessage ?: "No hay preguntas disponibles para ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)}. Verifica que el pack tenga contenido para esta materia."
                         )
                     }
                     return@launch
                 }
             } else {
-                _state.value.questions
+                // Si no hay materia específica, usar las preguntas ya cargadas o cargar todas
+                if (_state.value.questions.isEmpty()) {
+                    runCatching {
+                        prepareQuestions(pack.packId)
+                    }.getOrElse { throwable ->
+                        android.util.Log.e("ExamViewModel", "Error preparing questions", throwable)
+                        _state.update {
+                            it.copy(
+                                isBusy = false,
+                                errorMessage = throwable.localizedMessage ?: "No se pudieron cargar las preguntas."
+                            )
+                        }
+                        return@launch
+                    }
+                } else {
+                    _state.value.questions
+                }
             }
             
+            android.util.Log.d("ExamViewModel", "Loaded ${questions.size} questions")
+            
             if (questions.isEmpty()) {
+                android.util.Log.w("ExamViewModel", "No questions found for packId=${pack.packId}, subject=$subject")
                 _state.update { 
                     it.copy(
                         isBusy = false,
-                        errorMessage = "No hay preguntas disponibles para este pack."
+                        errorMessage = if (subject != null) {
+                            "No hay preguntas disponibles para ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)} en este pack. Intenta con otra materia."
+                        } else {
+                            "No hay preguntas disponibles para este pack."
+                        }
                     ) 
                 }
                 return@launch
@@ -243,8 +312,12 @@ class ExamViewModel @Inject constructor(
     }
 
     private suspend fun loadInitialState() {
+        android.util.Log.d("ExamViewModel", "loadInitialState: Starting")
         _state.update { it.copy(stage = ExamStage.Loading, isBusy = true, errorMessage = null) }
-        var pack = packRepository.observeActivePack().firstOrNull()
+        
+        android.util.Log.d("ExamViewModel", "loadInitialState: Getting active pack from database")
+        var pack = packRepository.getActivePack()
+        android.util.Log.d("ExamViewModel", "loadInitialState: Active pack = ${pack?.packId ?: "null"}")
         
         if (pack == null) {
             // Si no hay pack activo, buscar packs disponibles y descargar automáticamente
@@ -288,8 +361,10 @@ class ExamViewModel @Inject constructor(
             }
         }
 
+        android.util.Log.d("ExamViewModel", "loadInitialState: Preparing questions for pack ${pack.packId}")
         val questions = runCatching { prepareQuestions(pack.packId) }
             .getOrElse { throwable ->
+                android.util.Log.e("ExamViewModel", "loadInitialState: Error preparing questions", throwable)
                 _state.update {
                     it.copy(
                         stage = ExamStage.Start,
@@ -302,18 +377,26 @@ class ExamViewModel @Inject constructor(
                 }
                 return
             }
+        
+        android.util.Log.d("ExamViewModel", "loadInitialState: Prepared ${questions.size} questions")
 
         val inProgressAttempt = userId?.let { uid ->
+            android.util.Log.d("ExamViewModel", "loadInitialState: Checking for in-progress attempts for uid: $uid")
             examRepository.getAttempts(uid)
                 .firstOrNull { attempt -> attempt.status == ExamStatus.IN_PROGRESS && attempt.packId == pack.packId }
         }
+        
+        android.util.Log.d("ExamViewModel", "loadInitialState: In-progress attempt = ${inProgressAttempt?.attemptId ?: "null"}")
 
         // Buscar packs disponibles en paralelo (para mostrar si hay actualizaciones)
         val availablePack = runCatching { packRepository.fetchCurrentPackMeta() }.getOrNull()
+        android.util.Log.d("ExamViewModel", "loadInitialState: Available pack = ${availablePack?.packId ?: "null"}")
 
         if (inProgressAttempt != null) {
+            android.util.Log.d("ExamViewModel", "loadInitialState: Resuming attempt ${inProgressAttempt.attemptId}")
             resumeAttempt(inProgressAttempt, pack, questions)
         } else {
+            android.util.Log.d("ExamViewModel", "loadInitialState: Setting stage to Start with ${questions.size} questions")
             _state.update {
                 it.copy(
                     stage = ExamStage.Start,
@@ -325,6 +408,8 @@ class ExamViewModel @Inject constructor(
                     isBusy = false
                 )
             }
+            val updatedState = _state.value
+            android.util.Log.d("ExamViewModel", "loadInitialState: State updated, stage=${updatedState.stage}, pack=${updatedState.pack?.packId}, questions=${updatedState.questions.size}")
         }
     }
 
@@ -370,24 +455,56 @@ class ExamViewModel @Inject constructor(
     }
 
     private suspend fun prepareQuestions(packId: String, subject: String? = null): List<ExamContent> {
+        android.util.Log.d("ExamViewModel", "prepareQuestions: packId=$packId, subject=$subject")
+        
         val texts = packRepository.getTextsForPack(packId).associateBy { it.textId }
+        android.util.Log.d("ExamViewModel", "Found ${texts.size} texts for pack $packId")
+        
+        // Log textos por materia para debugging
+        if (subject != null) {
+            val textsForSubject = texts.values.filter { it.subject == subject }
+            android.util.Log.d("ExamViewModel", "Found ${textsForSubject.size} texts for subject $subject")
+            textsForSubject.forEach { text ->
+                android.util.Log.d("ExamViewModel", "Text ${text.textId}: subject=${text.subject}, title=${text.title}")
+            }
+        }
+        
         val questions = if (subject != null) {
             // Limitar a 10 preguntas por materia para pruebas PISA
-            packRepository.getQuestionsForPackBySubject(packId, subject)
+            val allQuestions = packRepository.getQuestionsForPackBySubject(packId, subject)
+            android.util.Log.d("ExamViewModel", "Found ${allQuestions.size} questions for subject $subject")
+            allQuestions
                 .sortedBy { it.questionId }
                 .take(10)
         } else {
-            packRepository.getQuestionsForPack(packId).sortedBy { it.questionId }
+            val allQuestions = packRepository.getQuestionsForPack(packId)
+            android.util.Log.d("ExamViewModel", "Found ${allQuestions.size} questions for pack (no subject filter)")
+            allQuestions.sortedBy { it.questionId }
         }
-        if (questions.isEmpty()) error("El pack no tiene preguntas almacenadas${if (subject != null) " para ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)}" else ""}.")
+        
+        if (questions.isEmpty()) {
+            val errorMsg = "El pack no tiene preguntas almacenadas${if (subject != null) " para ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)}" else ""}."
+            android.util.Log.e("ExamViewModel", errorMsg)
+            android.util.Log.e("ExamViewModel", "PackId: $packId, Subject: $subject, Total texts: ${texts.size}")
+            error(errorMsg)
+        }
 
-        return questions.map { question ->
+        val result = questions.mapNotNull { question ->
             val text = texts[question.textId]
-                ?: error("Falta el texto ${question.textId} para la pregunta.")
-            val options = packRepository.getOptionsForQuestion(question.questionId)
-                .sortedBy { it.optionId }
-            ExamContent(question, text, options)
+            if (text == null) {
+                android.util.Log.e("ExamViewModel", "Missing text ${question.textId} for question ${question.questionId}")
+                null
+            } else {
+                val options = packRepository.getOptionsForQuestion(question.questionId)
+                if (options.isEmpty()) {
+                    android.util.Log.w("ExamViewModel", "Question ${question.questionId} has no options")
+                }
+                ExamContent(question, text, options)
+            }
         }
+        
+        android.util.Log.d("ExamViewModel", "Prepared ${result.size} exam contents (from ${questions.size} questions)")
+        return result
     }
 
     private fun setCurrentIndex(newIndex: Int) {

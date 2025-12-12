@@ -142,7 +142,7 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // Verificar si hay un pack activo
-                val activePack = packRepository.observeActivePack().firstOrNull()
+                val activePack = packRepository.getActivePack()
                 if (activePack == null) {
                     // No hay pack activo, intentar descargar el pack actual
                     val availablePack = packRepository.fetchCurrentPackMeta()
