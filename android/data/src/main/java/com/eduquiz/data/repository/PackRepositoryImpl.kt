@@ -123,6 +123,9 @@ class PackRepositoryImpl @Inject constructor(
 
     override fun observeActivePack(): Flow<Pack?> =
         packDao.observeByStatus(PackStatus.ACTIVE).map { it?.toDomain() }
+    
+    override suspend fun getActivePack(): Pack? =
+        packDao.findByStatus(PackStatus.ACTIVE)?.toDomain()
 
     override suspend fun getTextsForPack(packId: String): List<TextContent> =
         contentDao.getTextsByPack(packId).map { it.toDomain() }

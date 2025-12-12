@@ -8,7 +8,6 @@ import androidx.work.WorkerParameters
 import com.eduquiz.domain.pack.PackRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import kotlinx.coroutines.flow.firstOrNull
 
 /**
  * Worker que verifica y descarga automáticamente nuevos packs cuando están disponibles.
@@ -36,8 +35,9 @@ class PackUpdateWorker @AssistedInject constructor(
             Log.d(TAG, "Starting pack update check")
 
             // 1. Obtener el pack activo actual (si existe)
-            val activePack = packRepository.observeActivePack().firstOrNull()
+            val activePack = packRepository.getActivePack()
             val currentPackId = activePack?.packId
+            Log.d(TAG, "Current active pack: ${currentPackId ?: "none"}")
 
             // 2. Verificar si hay un pack nuevo disponible en Firestore
             val availablePackMeta = packRepository.fetchCurrentPackMeta()
