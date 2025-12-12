@@ -17,6 +17,7 @@ import com.eduquiz.domain.profile.SyncState
 import com.eduquiz.domain.sync.SyncAllUsersResult
 import com.eduquiz.domain.sync.SyncRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.firstOrNull
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -196,5 +197,65 @@ class SyncRepositoryImpl @Inject constructor(
             )
         
         Log.d("SyncRepository", "Enqueued sync all users work")
+    }
+    
+    override suspend fun syncUserProfileNow(uid: String): Boolean {
+        return try {
+            Log.d("SyncRepository", "🔄 Syncing user profile immediately: $uid")
+            
+            val profileDao = database.profileDao()
+            
+            // Obtener el perfil actual usando getAllProfiles para evitar problemas con Flow
+            val allProfiles = profileDao.getAllProfiles()
+            val profileEntity = allProfiles.find { it.uid == uid } ?: run {
+                Log.w("SyncRepository", "❌ Profile not found for $uid")
+                return false
+            }
+            
+            Log.d("SyncRepository", "📊 Current profile state - syncState: ${profileEntity.syncState}, xp: ${profileEntity.xp}, updatedAtLocal: ${profileEntity.updatedAtLocal}")
+            
+            // Actualizar updatedAtLocal para forzar sincronización (asegurar que el local sea más reciente)
+            val updatedAtLocal = System.currentTimeMillis()
+            
+            // Crear una copia del perfil con el timestamp actualizado y estado PENDING
+            val updatedProfile = profileEntity.copy(
+                updatedAtLocal = updatedAtLocal,
+                syncState = SyncState.PENDING
+            )
+            profileDao.upsertProfile(updatedProfile)
+            
+            Log.d("SyncRepository", "✅ Updated profile in DB with new timestamp: $updatedAtLocal, syncState: PENDING")
+            
+            // Pequeña espera para asegurar que la base de datos se actualizó
+            kotlinx.coroutines.delay(200)
+            
+            // Re-verificar el perfil después del delay para asegurarnos de tener los datos más recientes
+            val finalProfile = profileDao.getAllProfiles().find { it.uid == uid } ?: updatedProfile
+            Log.d("SyncRepository", "📋 Final profile to sync - syncState: ${finalProfile.syncState}, xp: ${finalProfile.xp}, updatedAtLocal: ${finalProfile.updatedAtLocal}")
+            
+            // Sincronizar inmediatamente
+            Log.d("SyncRepository", "🚀 Calling syncService.syncUserProfile for $uid")
+            val success = syncService.syncUserProfile(finalProfile)
+            
+            Log.d("SyncRepository", "📤 Sync result for $uid: $success")
+            
+            if (success) {
+                profileDao.updateProfileSyncState(uid, SyncState.SYNCED)
+                Log.d("SyncRepository", "✅✅ Successfully synced user profile: $uid - syncState updated to SYNCED")
+            } else {
+                profileDao.updateProfileSyncState(uid, SyncState.FAILED)
+                Log.w("SyncRepository", "❌❌ Failed to sync user profile: $uid - syncState updated to FAILED - check FirestoreSyncService logs for details")
+            }
+            
+            success
+        } catch (e: Exception) {
+            Log.e("SyncRepository", "💥 Exception syncing user profile $uid", e)
+            Log.e("SyncRepository", "Exception type: ${e.javaClass.simpleName}")
+            Log.e("SyncRepository", "Exception message: ${e.message}")
+            e.printStackTrace()
+            val profileDao = database.profileDao()
+            profileDao.updateProfileSyncState(uid, SyncState.FAILED)
+            false
+        }
     }
 }

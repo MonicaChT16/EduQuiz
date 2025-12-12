@@ -37,6 +37,14 @@ interface SyncRepository {
      * Se ejecuta cuando hay conexión a internet.
      */
     fun enqueueSyncAllUsers()
+    
+    /**
+     * Sincroniza inmediatamente el perfil de un usuario específico a Firestore.
+     * Marca el perfil como PENDING y luego lo sincroniza directamente.
+     * @param uid ID del usuario a sincronizar
+     * @return true si la sincronización fue exitosa, false en caso contrario
+     */
+    suspend fun syncUserProfileNow(uid: String): Boolean
 }
 
 /**

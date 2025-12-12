@@ -37,6 +37,8 @@ data class ExamUiState(
     val isBusy: Boolean = false,
     val isDownloading: Boolean = false,
     val isLoadingPack: Boolean = false,
+    val isLoadingQuestions: Boolean = false,
+    val questionsLoadProgress: String? = null,
 )
 
 val ExamUiState.totalQuestions: Int

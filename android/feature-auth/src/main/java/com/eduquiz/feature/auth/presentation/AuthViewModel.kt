@@ -62,6 +62,7 @@ class AuthViewModel @Inject constructor(
                             
                             if (firestoreProfile == null) {
                                 // Si no existe en Firestore, crear perfil inicial
+                                android.util.Log.d("AuthViewModel", "Creating new profile for user: ${user.uid}")
                                 profileRepository.upsertProfile(
                                     UserProfile(
                                         uid = user.uid,
@@ -77,9 +78,25 @@ class AuthViewModel @Inject constructor(
                                         syncState = SyncState.PENDING
                                     )
                                 )
+                                // Sincronizar inmediatamente el nuevo perfil a Firestore
+                                android.util.Log.d("AuthViewModel", "Syncing new profile to Firestore: ${user.uid}")
+                                try {
+                                    val syncSuccess = syncRepository.syncUserProfileNow(user.uid)
+                                    android.util.Log.d("AuthViewModel", if (syncSuccess) "✅ New profile synced successfully" else "❌ Failed to sync new profile")
+                                } catch (e: Exception) {
+                                    android.util.Log.e("AuthViewModel", "Error syncing new profile", e)
+                                    // Encolar sincronización por si falla la inmediata
+                                    syncRepository.enqueueSyncNow()
+                                }
                             } else {
                                 // El perfil se recuperó desde Firestore y ya está guardado en Room
                                 android.util.Log.d("AuthViewModel", "Profile recovered from Firestore: ${firestoreProfile.ugelCode}")
+                            }
+                        } else {
+                            // El perfil ya existe, asegurar sincronización si está pendiente
+                            if (existingProfile.syncState == SyncState.PENDING) {
+                                android.util.Log.d("AuthViewModel", "Existing profile is PENDING, syncing: ${user.uid}")
+                                syncRepository.enqueueSyncNow()
                             }
                         }
                         

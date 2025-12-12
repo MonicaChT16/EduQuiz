@@ -103,8 +103,8 @@ class ProfileRepositoryImpl @Inject constructor(
                 uid = snapshot.id,
                 displayName = snapshot.getString("displayName") ?: "Usuario",
                 photoUrl = snapshot.getString("photoUrl"),
-                schoolId = snapshot.getString("schoolId") ?: "",
-                classroomId = snapshot.getString("classroomId") ?: "",
+                schoolId = "", // Legacy - no se usa
+                classroomId = "", // Legacy - no se usa
                 ugelCode = finalUgelCode, // Preservar el código UGEL desde Firestore
                 coins = (snapshot.getLong("coins") ?: 0L).toInt(),
                 xp = snapshot.getLong("xp") ?: snapshot.getLong("totalXp") ?: 0L,

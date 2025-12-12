@@ -136,8 +136,69 @@ class PackRepositoryImpl @Inject constructor(
     override suspend fun getQuestionsForPack(packId: String): List<Question> =
         contentDao.getQuestionsByPack(packId).map { it.toDomain() }
 
-    override suspend fun getQuestionsForPackBySubject(packId: String, subject: String): List<Question> =
-        contentDao.getQuestionsByPackAndSubject(packId, subject).map { it.toDomain() }
+    override suspend fun getQuestionsForPackBySubject(packId: String, subject: String): List<Question> {
+        android.util.Log.d("PackRepositoryImpl", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        android.util.Log.d("PackRepositoryImpl", "🔍 DIAGNÓSTICO: getQuestionsForPackBySubject")
+        android.util.Log.d("PackRepositoryImpl", "   packId: $packId")
+        android.util.Log.d("PackRepositoryImpl", "   subject: $subject")
+        
+        // 1. Contar preguntas por subject usando query de diagnóstico
+        val subjectCounts = contentDao.countQuestionsBySubject(packId)
+        android.util.Log.d("PackRepositoryImpl", "📊 PREGUNTAS POR SUBJECT (desde BD):")
+        subjectCounts.forEach { count ->
+            android.util.Log.d("PackRepositoryImpl", "   ${count.subject}: ${count.count} preguntas")
+        }
+        
+        // 2. Obtener información detallada de todas las preguntas con sus textos
+        val questionsWithInfo = contentDao.getQuestionsWithSubjectInfo(packId)
+        android.util.Log.d("PackRepositoryImpl", "📋 DETALLE DE TODAS LAS PREGUNTAS (${questionsWithInfo.size} total):")
+        questionsWithInfo.forEach { info ->
+            android.util.Log.d("PackRepositoryImpl", "   Q: ${info.questionId} | Text: ${info.textId} (${info.text_subject}) | ${info.text_title}")
+        }
+        
+        // 3. Filtrar preguntas para el subject específico
+        val questionsForSubject = questionsWithInfo.filter { it.text_subject == subject }
+        android.util.Log.d("PackRepositoryImpl", "✅ PREGUNTAS FILTRADAS PARA '$subject': ${questionsForSubject.size}")
+        
+        if (questionsForSubject.isEmpty()) {
+            android.util.Log.w("PackRepositoryImpl", "⚠️ No se encontraron preguntas para subject '$subject'")
+            android.util.Log.w("PackRepositoryImpl", "   Subjects disponibles: ${subjectCounts.map { it.subject }.joinToString(", ")}")
+            
+            // Intentar con variaciones
+            val subjectVariations = when (subject) {
+                com.eduquiz.domain.pack.Subject.MATEMATICA -> listOf("MATEMATICAS", "MATH", "MATHEMATICS", "MATEMATICA")
+                com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA -> listOf("LECTURA", "LECTURA_COMPRENSION", "COMPRENSION", "COMPRENSION_LECTORA")
+                com.eduquiz.domain.pack.Subject.CIENCIAS -> listOf("CIENCIA", "SCIENCE", "CIENCIAS")
+                else -> emptyList()
+            }
+            
+            for (variant in subjectVariations) {
+                val variantQuestions = questionsWithInfo.filter { it.text_subject == variant }
+                if (variantQuestions.isNotEmpty()) {
+                    android.util.Log.d("PackRepositoryImpl", "✓ Found ${variantQuestions.size} questions with variant '$variant'")
+                    val questionIds = variantQuestions.map { it.questionId }.toSet()
+                    val allQuestions = contentDao.getQuestionsByPack(packId)
+                    return allQuestions.filter { it.questionId in questionIds }.map { it.toDomain() }
+                }
+            }
+            
+            android.util.Log.e("PackRepositoryImpl", "❌ No se encontraron preguntas ni con variaciones")
+            return emptyList()
+        }
+        
+        // 4. Obtener las entidades QuestionEntity completas
+        val questionIds = questionsForSubject.map { it.questionId }.toSet()
+        val allQuestions = contentDao.getQuestionsByPack(packId)
+        val filteredQuestions = allQuestions.filter { it.questionId in questionIds }
+        
+        android.util.Log.d("PackRepositoryImpl", "📦 RESULTADO FINAL: ${filteredQuestions.size} preguntas")
+        filteredQuestions.forEach { q ->
+            android.util.Log.d("PackRepositoryImpl", "   → ${q.questionId} (textId: ${q.textId})")
+        }
+        android.util.Log.d("PackRepositoryImpl", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        
+        return filteredQuestions.map { it.toDomain() }
+    }
 
     override suspend fun getOptionsForQuestion(questionId: String): List<Option> =
         contentDao.getOptionsByQuestion(questionId).map { it.toDomain() }
