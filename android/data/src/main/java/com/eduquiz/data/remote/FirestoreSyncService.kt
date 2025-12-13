@@ -99,23 +99,87 @@ class FirestoreSyncService @Inject constructor(
 
     /**
      * Calcula las estadísticas de ranking del usuario.
+     * Primero intenta desde datos locales, si no hay datos o hay muy pocos, intenta desde Firestore.
      * Retorna: (accuracy, totalAttempts, totalCorrectAnswers, totalQuestions)
      */
     private suspend fun calculateRankingStats(uid: String): RankingStats {
         return try {
-            val attempts = examRepository.getAttempts(uid)
-            val completedAttempts = attempts.filter { 
+            android.util.Log.d("FirestoreSyncService", "📊 Calculating ranking stats for $uid")
+            
+            // 1. Intentar calcular desde datos locales primero
+            val localAttempts = examRepository.getAttempts(uid)
+            android.util.Log.d("FirestoreSyncService", "Found ${localAttempts.size} total attempts in local DB")
+            
+            val localCompletedAttempts = localAttempts.filter { 
                 it.status == ExamStatus.COMPLETED || it.status == ExamStatus.AUTO_SUBMIT 
             }
-            val totalAttempts = completedAttempts.size
             
+            android.util.Log.d("FirestoreSyncService", "Found ${localCompletedAttempts.size} completed attempts (from ${localAttempts.size} total)")
+            
+            var totalAttempts = localCompletedAttempts.size
             var totalCorrect = 0
             var totalQuestions = 0
             
-            completedAttempts.forEach { attempt ->
+            localCompletedAttempts.forEach { attempt ->
                 val answers = examRepository.getAnswersForAttempt(attempt.attemptId)
                 totalQuestions += answers.size
-                totalCorrect += answers.count { it.isCorrect }
+                val correctCount = answers.count { it.isCorrect }
+                totalCorrect += correctCount
+                android.util.Log.d("FirestoreSyncService", "Local attempt ${attempt.attemptId} (status=${attempt.status}): ${answers.size} answers, $correctCount correct")
+            }
+            
+            android.util.Log.d("FirestoreSyncService", "Local stats: attempts=$totalAttempts, correct=$totalCorrect, questions=$totalQuestions")
+            
+            // 2. Si no hay suficientes datos locales, intentar obtener desde Firestore
+            // Esto es importante cuando se reinstala la app y los datos locales se perdieron
+            if (totalAttempts == 0) {
+                android.util.Log.d("FirestoreSyncService", "No local attempts found, fetching from Firestore...")
+                try {
+                    // Usar dos consultas separadas porque whereIn con 2 valores puede no requerir índice compuesto
+                    // y es más compatible con Firestore
+                    val attemptsCompleted = firestore
+                        .collection("users")
+                        .document(uid)
+                        .collection("examAttempts")
+                        .whereEqualTo("status", ExamStatus.COMPLETED)
+                        .get()
+                        .await()
+                    
+                    val attemptsAutoSubmit = firestore
+                        .collection("users")
+                        .document(uid)
+                        .collection("examAttempts")
+                        .whereEqualTo("status", ExamStatus.AUTO_SUBMIT)
+                        .get()
+                        .await()
+                    
+                    // Combinar ambas consultas
+                    val allFirestoreAttempts = attemptsCompleted.documents + attemptsAutoSubmit.documents
+                    
+                    android.util.Log.d("FirestoreSyncService", "Found ${allFirestoreAttempts.size} completed attempts in Firestore")
+                    
+                    allFirestoreAttempts.forEach { attemptDoc ->
+                        totalAttempts++
+                        
+                        // Obtener respuestas de este intento desde Firestore
+                        val answersRef = attemptDoc.reference.collection("answers").get().await()
+                        val correctCount = answersRef.documents.count { answerDoc ->
+                            answerDoc.getBoolean("isCorrect") == true
+                        }
+                        
+                        totalQuestions += answersRef.documents.size
+                        totalCorrect += correctCount
+                        
+                        android.util.Log.d("FirestoreSyncService", "Firestore attempt ${attemptDoc.id}: ${answersRef.documents.size} answers, $correctCount correct")
+                    }
+                    
+                    if (totalAttempts > 0) {
+                        android.util.Log.d("FirestoreSyncService", "✅ Successfully retrieved stats from Firestore")
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("FirestoreSyncService", "⚠️ Could not fetch attempts from Firestore (user might not have any): ${e.message}")
+                    // No es un error crítico, simplemente continuar con 0
+                }
             }
             
             val accuracy = if (totalQuestions > 0) {
@@ -124,6 +188,8 @@ class FirestoreSyncService @Inject constructor(
                 0f
             }
             
+            android.util.Log.d("FirestoreSyncService", "📊 Stats calculated - accuracy: $accuracy%, attempts: $totalAttempts, correct: $totalCorrect/$totalQuestions")
+            
             RankingStats(
                 accuracy = accuracy,
                 totalAttempts = totalAttempts,
@@ -131,7 +197,9 @@ class FirestoreSyncService @Inject constructor(
                 totalQuestions = totalQuestions
             )
         } catch (e: Exception) {
-            android.util.Log.e("FirestoreSyncService", "Error calculating ranking stats for $uid", e)
+            android.util.Log.e("FirestoreSyncService", "❌ Error calculating ranking stats for $uid", e)
+            android.util.Log.e("FirestoreSyncService", "Error details: ${e.message}")
+            e.printStackTrace()
             RankingStats(0f, 0, 0, 0)
         }
     }
@@ -154,7 +222,7 @@ class FirestoreSyncService @Inject constructor(
      * 
      * Incluye todos los campos del diseño:
      * - Datos básicos: uid, displayName, email, photoUrl
-     * - Datos de colegio: schoolCode (del schoolId), schoolId, classroomId
+     * - Datos de colegio: schoolCode (del ugelCode), ugelCode
      * - Métricas de ranking: totalXp, averageAccuracy, totalAttempts, totalCorrectAnswers, totalQuestions
      * - Otros: coins, selectedCosmeticId, timestamps
      * 
@@ -174,6 +242,7 @@ class FirestoreSyncService @Inject constructor(
                 0L // Si no existe, el local es más reciente
             }
             android.util.Log.d("FirestoreSyncService", "Remote updatedAt: $remoteUpdatedAt, Local updatedAt: ${profile.updatedAtLocal}")
+            android.util.Log.d("FirestoreSyncService", "Timestamp comparison - Local >= Remote: ${profile.updatedAtLocal >= remoteUpdatedAt}")
 
             // Solo escribir si el local es más reciente o igual (última escritura gana)
             if (profile.updatedAtLocal >= remoteUpdatedAt) {
@@ -214,8 +283,6 @@ class FirestoreSyncService @Inject constructor(
                     // Datos de colegio/UGEL
                     "schoolCode" to schoolCode,  // Código de colegio/UGEL (ingresado manualmente por el usuario)
                     "ugelCode" to profile.ugelCode,  // Guardar también el código UGEL original
-                    "schoolId" to profile.schoolId,
-                    "classroomId" to profile.classroomId,
                     
                     // Monedas y XP
                     "coins" to profile.coins,
@@ -243,9 +310,11 @@ class FirestoreSyncService @Inject constructor(
             } else {
                 // El remoto es más reciente, no sobrescribir
                 // El perfil local se actualizará automáticamente cuando se llame a fetchProfileFromFirestore
-                android.util.Log.d("FirestoreSyncService", "Remote profile is newer (remote: $remoteUpdatedAt, local: ${profile.updatedAtLocal}), skipping sync for ${profile.uid}")
+                android.util.Log.w("FirestoreSyncService", "⚠️ Remote profile is newer (remote: $remoteUpdatedAt, local: ${profile.updatedAtLocal}), skipping sync for ${profile.uid}")
+                android.util.Log.w("FirestoreSyncService", "⚠️ This means Firestore has newer data - local sync will be skipped")
                 android.util.Log.d("FirestoreSyncService", "Note: Use fetchProfileFromFirestore() to update local profile from remote")
                 // Aún así marcamos como SYNCED porque el remoto ya tiene la versión más reciente
+                // PERO esto podría ser un problema si queremos forzar la sincronización local
                 true
             }
         } catch (e: Exception) {

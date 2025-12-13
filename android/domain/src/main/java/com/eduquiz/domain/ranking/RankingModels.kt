@@ -9,4 +9,12 @@ data class LeaderboardEntry(
     val examsCompleted: Int // Exámenes Completados
 )
 
+/**
+ * Resultado de una operación de ranking que puede contener datos o un error.
+ */
+sealed class RankingResult<out T> {
+    data class Success<T>(val data: T) : RankingResult<T>()
+    data class Error(val error: RankingError) : RankingResult<Nothing>()
+}
+
 
