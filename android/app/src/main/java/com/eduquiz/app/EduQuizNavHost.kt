@@ -199,9 +199,26 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
                 )
             }
             composable(RootDestination.Notifications.route) {
-                NotificationsScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
+                val homeProfileViewModel: com.eduquiz.app.ui.HomeProfileViewModel = hiltViewModel()
+                val notificationsEnabled by homeProfileViewModel.notificationsEnabled.collectAsStateWithLifecycle()
+                val context = androidx.compose.ui.platform.LocalContext.current
+
+                androidx.compose.runtime.LaunchedEffect(notificationsEnabled) {
+                    if (!notificationsEnabled) {
+                        android.widget.Toast.makeText(
+                            context,
+                            "Notificaciones desactivadas en ajustes",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                        navController.popBackStack()
+                    }
+                }
+
+                if (notificationsEnabled) {
+                    NotificationsScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
             }
             // MERGE: Lista de exclusión actualizada para incluir Settings, About y Notifications
             RootDestination.allDestinations

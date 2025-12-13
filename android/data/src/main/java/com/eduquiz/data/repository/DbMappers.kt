@@ -99,6 +99,7 @@ fun UserProfileEntity.toDomain() = UserProfile(
     selectedCosmeticId = selectedCosmeticId,
     updatedAtLocal = updatedAtLocal,
     syncState = syncState,
+    notificationsEnabled = notificationsEnabled,
 )
 
 fun UserProfile.toEntity() = UserProfileEntity(
@@ -111,6 +112,7 @@ fun UserProfile.toEntity() = UserProfileEntity(
     selectedCosmeticId = selectedCosmeticId,
     updatedAtLocal = updatedAtLocal,
     syncState = syncState,
+    notificationsEnabled = notificationsEnabled,
 )
 
 fun InventoryEntity.toDomain() = InventoryItem(
