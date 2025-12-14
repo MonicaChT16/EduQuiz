@@ -1,6 +1,7 @@
 package com.eduquiz.feature.profile
 
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -33,11 +34,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.decode.Decoder
+import com.eduquiz.core.resources.resolveCosmeticOverlayModel
 import com.eduquiz.domain.exam.ExamAttempt
 import com.eduquiz.domain.exam.ExamStatus
 import com.eduquiz.domain.profile.Achievement
@@ -53,6 +58,15 @@ fun ProfileFeature(
     authViewModel: AuthViewModel = hiltViewModel(),
     profileViewModel: ProfileViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+    val gifImageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components {
+                addGifDecoderIfAvailable()
+            }
+            .build()
+    }
+
     val authState by authViewModel.state.collectAsStateWithLifecycle()
     val attempts by profileViewModel.attempts.collectAsStateWithLifecycle()
     val profile by profileViewModel.profile.collectAsStateWithLifecycle()
@@ -418,6 +432,15 @@ private fun ProfilePhotoSection(
     onPhotoClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val gifImageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components {
+                addGifDecoderIfAvailable()
+            }
+            .build()
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -486,8 +509,10 @@ private fun ProfilePhotoSection(
                     )
                 } else {
                     cosmeticOverlayUrl?.let { overlayUrl ->
+                        val overlayModel = resolveCosmeticOverlayModel(context, overlayUrl)
                         AsyncImage(
-                            model = overlayUrl,
+                            model = overlayModel,
+                            imageLoader = gifImageLoader,
                             contentDescription = "Decoración de perfil",
                             modifier = Modifier
                                 .fillMaxSize(),
@@ -513,3 +538,21 @@ private fun ProfilePhotoSection(
     }
 }
 
+private fun coil.ComponentRegistry.Builder.addGifDecoderIfAvailable() {
+    val factory: Decoder.Factory? =
+        if (Build.VERSION.SDK_INT >= 28) {
+            tryNewDecoderFactory("coil.decode.ImageDecoderDecoder\$Factory")
+                ?: tryNewDecoderFactory("coil.decode.GifDecoder\$Factory")
+        } else {
+            tryNewDecoderFactory("coil.decode.GifDecoder\$Factory")
+        }
+
+    if (factory != null) add(factory)
+}
+
+private fun tryNewDecoderFactory(className: String): Decoder.Factory? {
+    return runCatching {
+        val clazz = Class.forName(className)
+        clazz.getDeclaredConstructor().newInstance() as Decoder.Factory
+    }.getOrNull()
+}

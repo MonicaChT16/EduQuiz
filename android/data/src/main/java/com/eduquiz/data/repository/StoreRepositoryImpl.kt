@@ -27,35 +27,35 @@ object CosmeticCatalog {
             name = "Corona Dorada",
             cost = 100,
             description = "Una elegante corona dorada sobre tu foto",
-            overlayImageUrl = "https://example.com/overlays/crown_gold.png" // TODO: Reemplazar con URL real
+            overlayImageUrl = "drawable://corona_dorada"
         ),
         Cosmetic(
             cosmeticId = "star_gold",
             name = "Estrella Dorada",
             cost = 150,
             description = "Una estrella brillante en tu foto",
-            overlayImageUrl = "https://example.com/overlays/star_gold.png" // TODO: Reemplazar con URL real
+            overlayImageUrl = "drawable://estrella_dorada"
         ),
         Cosmetic(
             cosmeticId = "badge_champion",
             name = "Insignia de Campeón",
             cost = 200,
             description = "Insignia de campeón académico",
-            overlayImageUrl = "https://example.com/overlays/badge_champion.png" // TODO: Reemplazar con URL real
+            overlayImageUrl = "drawable://insignia_campeon"
         ),
         Cosmetic(
             cosmeticId = "halo_gold",
             name = "Aureola Dorada",
             cost = 300,
             description = "Una aureola brillante alrededor de tu foto",
-            overlayImageUrl = "https://example.com/overlays/halo_gold.png" // TODO: Reemplazar con URL real
+            overlayImageUrl = "drawable://aureola_dorada"
         ),
         Cosmetic(
             cosmeticId = "frame_gold",
             name = "Marco Dorado",
             cost = 250,
             description = "Un marco elegante alrededor de tu foto",
-            overlayImageUrl = "https://example.com/overlays/frame_gold.png" // TODO: Reemplazar con URL real
+            overlayImageUrl = "drawable://marco_dorado"
         )
     )
 }
@@ -119,4 +119,3 @@ class StoreRepositoryImpl @Inject constructor(
     override suspend fun isCosmeticPurchased(uid: String, cosmeticId: String): Boolean =
         storeDao.hasInventoryItem(uid, cosmeticId)
 }
-
