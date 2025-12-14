@@ -112,6 +112,7 @@ data class UserProfileEntity(
     val selectedCosmeticId: String?, // Nullable porque puede no tener cosmético equipado
     val updatedAtLocal: Long,
     val syncState: String,
+    val notificationsEnabled: Boolean = true, // Nuevo campo para controlar las notificaciones
 )
 
 @Entity(
@@ -421,6 +422,20 @@ interface ProfileDao {
         """
     )
     suspend fun updateProfileSyncState(uid: String, syncState: String)
+
+    @Query(
+        """
+        UPDATE user_profile_entity
+        SET notificationsEnabled = :notificationsEnabled, updatedAtLocal = :updatedAtLocal, syncState = :syncState
+        WHERE uid = :uid
+        """
+    )
+    suspend fun updateNotificationsEnabled(
+        uid: String,
+        notificationsEnabled: Boolean,
+        updatedAtLocal: Long,
+        syncState: String
+    )
 }
 
 @Dao
@@ -523,7 +538,7 @@ interface OnboardingDao {
         ExamAnswerEntity::class,
         OnboardingPreferencesEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -616,6 +631,10 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_question_entity_packId_textId ON question_entity(packId, textId)"
                 )
+            },
+            Migration(6, 7) { database ->
+                // Agregar campo notificationsEnabled a user_profile_entity
+                database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN notificationsEnabled INTEGER NOT NULL DEFAULT 1")
             }
         )
     }

@@ -46,15 +46,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 
 @Composable
 fun SettingsScreen(
     onNavigate: (route: String) -> Unit = {},
     onLogout: () -> Unit = {},
-    authViewModel: AuthViewModel = hiltViewModel()
+    authViewModel: AuthViewModel = hiltViewModel(),
+    homeProfileViewModel: HomeProfileViewModel = hiltViewModel()
 ) {
-    var notificationEnabled by remember { mutableStateOf(true) }
+    val notificationEnabled by homeProfileViewModel.notificationsEnabled.collectAsStateWithLifecycle()
     var selectedLanguage by remember { mutableStateOf("Español") }
 
     Box(
@@ -105,7 +107,7 @@ fun SettingsScreen(
                     content = {
                         Switch(
                             checked = notificationEnabled,
-                            onCheckedChange = { notificationEnabled = it },
+                            onCheckedChange = { homeProfileViewModel.updateNotificationsEnabled(it) },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = Color(0xFF3B82F6),

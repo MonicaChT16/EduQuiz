@@ -12,6 +12,7 @@ data class UserProfile(
     val selectedCosmeticId: String?, // Nullable porque puede no tener cosmético equipado
     val updatedAtLocal: Long,
     val syncState: String,
+    val notificationsEnabled: Boolean = true, // Nuevo campo para controlar las notificaciones
 )
 
 data class InventoryItem(

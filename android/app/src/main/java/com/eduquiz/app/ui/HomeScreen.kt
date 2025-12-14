@@ -69,9 +69,11 @@ import com.eduquiz.feature.exam.ExamNavigationHelper
 @Composable
 fun HomeScreen(
     onNavigate: (RootDestination) -> Unit,
-    authViewModel: AuthViewModel = hiltViewModel()
+    authViewModel: AuthViewModel = hiltViewModel(),
+    homeProfileViewModel: HomeProfileViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.state.collectAsStateWithLifecycle()
+    val notificationsEnabled by homeProfileViewModel.notificationsEnabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val imageLoader = ImageLoader.Builder(context)
         .components {
@@ -122,6 +124,7 @@ fun HomeScreen(
             // Header con perfil, XP, monedas y notificaciones
             HomeHeader(
                 authState = authState,
+                notificationsEnabled = notificationsEnabled,
                 onNotificationClick = { onNavigate(RootDestination.Notifications) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -404,6 +407,7 @@ private fun getSubjectCodeFromDisplayName(displayName: String): String? {
 @Composable
 fun HomeHeader(
     authState: AuthState,
+    notificationsEnabled: Boolean,
     onNotificationClick: () -> Unit,
     modifier: Modifier = Modifier,
     profileViewModel: HomeProfileViewModel = hiltViewModel()
@@ -541,6 +545,7 @@ fun HomeHeader(
         // Botón Notificaciones
         IconButton(
             onClick = onNotificationClick,
+            enabled = notificationsEnabled, // Habilitar/deshabilitar según el estado
             modifier = Modifier.size(48.dp)
         ) {
             Surface(
@@ -557,7 +562,7 @@ fun HomeHeader(
                         imageVector = Icons.Default.Notifications,
                         contentDescription = "Notificaciones",
                         modifier = Modifier.size(24.dp),
-                        tint = Color.Black
+                        tint = if (notificationsEnabled) Color.Black else Color.LightGray // Cambiar color si está deshabilitado
                     )
                 }
             }

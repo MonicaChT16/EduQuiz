@@ -110,7 +110,8 @@ class ProfileRepositoryImpl @Inject constructor(
                 xp = snapshot.getLong("xp") ?: snapshot.getLong("totalXp") ?: 0L,
                 selectedCosmeticId = snapshot.getString("selectedCosmeticId"),
                 updatedAtLocal = snapshot.getLong("updatedAtLocal") ?: System.currentTimeMillis(),
-                syncState = SyncState.SYNCED
+                syncState = SyncState.SYNCED,
+                notificationsEnabled = snapshot.getBoolean("notificationsEnabled") ?: true
             )
             
             // Guardar en Room
@@ -122,6 +123,15 @@ class ProfileRepositoryImpl @Inject constructor(
             android.util.Log.e("ProfileRepository", "Error fetching profile from Firestore", e)
             null
         }
+    }
+
+    override suspend fun updateNotificationsEnabled(
+        uid: String,
+        notificationsEnabled: Boolean,
+        updatedAtLocal: Long,
+        syncState: String
+    ) {
+        profileDao.updateNotificationsEnabled(uid, notificationsEnabled, updatedAtLocal, syncState)
     }
 
     override suspend fun saveDailyStreak(streak: DailyStreak) {
