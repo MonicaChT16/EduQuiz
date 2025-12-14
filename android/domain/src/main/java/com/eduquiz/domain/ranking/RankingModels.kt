@@ -6,7 +6,8 @@ data class LeaderboardEntry(
     val photoUrl: String?,
     val totalScore: Int, // Puntaje Total (XP)
     val accuracy: Float, // Precisión Promedio (%): 0.0 a 100.0
-    val examsCompleted: Int // Exámenes Completados
+    val examsCompleted: Int, // Exámenes Completados
+    val selectedCosmeticId: String? = null // Cosmético equipado
 )
 
 /**

@@ -55,6 +55,8 @@ dependencies {
         implementation(libs.hilt.android)
         kapt(libs.hilt.compiler)
         
+        implementation(libs.vico.compose.m3)
+        
         // Para cargar imágenes desde URL
         implementation("io.coil-kt:coil-compose:2.6.0")
         implementation("io.coil-kt:coil-gif:2.6.0")

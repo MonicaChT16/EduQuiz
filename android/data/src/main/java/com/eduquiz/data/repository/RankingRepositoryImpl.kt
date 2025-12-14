@@ -57,6 +57,7 @@ class RankingRepositoryImpl @Inject constructor(
         val uid = id
         val displayName = getString("displayName") ?: ""
         val photoUrl = getString("photoUrl")
+        val selectedCosmeticId = getString("selectedCosmeticId")
         
         // Usar totalScore o totalXp o xp (compatibilidad)
         val totalScore = getLong("totalScore")?.toInt() 
@@ -80,7 +81,8 @@ class RankingRepositoryImpl @Inject constructor(
             photoUrl = photoUrl,
             totalScore = totalScore,
             accuracy = accuracy,
-            examsCompleted = examsCompleted
+            examsCompleted = examsCompleted,
+            selectedCosmeticId = selectedCosmeticId
         )
     }
 
@@ -91,6 +93,7 @@ class RankingRepositoryImpl @Inject constructor(
         val uid = get("uid") as? String ?: return null
         val displayName = get("displayName") as? String ?: ""
         val photoUrl = get("photoUrl") as? String
+        val selectedCosmeticId = get("selectedCosmeticId") as? String
         
         val totalScore = (get("totalScore") as? Number)?.toInt() 
             ?: (get("totalXp") as? Number)?.toInt() 
@@ -111,7 +114,8 @@ class RankingRepositoryImpl @Inject constructor(
             photoUrl = photoUrl,
             totalScore = totalScore,
             accuracy = accuracy,
-            examsCompleted = examsCompleted
+            examsCompleted = examsCompleted,
+            selectedCosmeticId = selectedCosmeticId
         )
     }
 

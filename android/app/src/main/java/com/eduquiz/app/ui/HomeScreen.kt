@@ -2,6 +2,7 @@ package com.eduquiz.app.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +63,7 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import com.eduquiz.app.R // Importación para acceder a los recursos
 import com.eduquiz.app.navigation.RootDestination
+import com.eduquiz.core.resources.resolveCosmeticOverlayModel
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 import com.eduquiz.feature.auth.model.AuthState
 import com.eduquiz.domain.pack.Subject
@@ -413,6 +416,27 @@ fun HomeHeader(
     profileViewModel: HomeProfileViewModel = hiltViewModel()
 ) {
     val profile by profileViewModel.profile.collectAsStateWithLifecycle(initialValue = null)
+    val context = LocalContext.current
+    val gifImageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components {
+                if (Build.VERSION.SDK_INT >= 28) {
+                    add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+            }
+            .build()
+    }
+
+    var cosmeticOverlayUrl: String? by remember { mutableStateOf(null) }
+    LaunchedEffect(profile?.selectedCosmeticId) {
+        profile?.selectedCosmeticId?.let { cosmeticId ->
+            cosmeticOverlayUrl = profileViewModel.getCosmeticOverlayUrl(cosmeticId)
+        } ?: run {
+            cosmeticOverlayUrl = null
+        }
+    }
     
     Row(
         modifier = modifier,
@@ -438,6 +462,7 @@ fun HomeHeader(
                     contentAlignment = Alignment.Center
                 ) {
                     val photoUrl = profile?.photoUrl
+                    val selectedCosmeticId = profile?.selectedCosmeticId
                     if (photoUrl != null) {
                         // Mostrar la imagen del perfil si existe
                         AsyncImage(
@@ -456,6 +481,29 @@ fun HomeHeader(
                             modifier = Modifier.size(24.dp),
                             tint = Color.Gray
                         )
+                    }
+
+                    if (selectedCosmeticId == "basic_frame") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .border(
+                                    width = 3.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = CircleShape
+                                )
+                        )
+                    } else if (selectedCosmeticId != null) {
+                        val overlayModel = resolveCosmeticOverlayModel(context, cosmeticOverlayUrl)
+                        if (overlayModel != null) {
+                            AsyncImage(
+                                model = overlayModel,
+                                imageLoader = gifImageLoader,
+                                contentDescription = "Marco de perfil",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
                     }
                 }
             }

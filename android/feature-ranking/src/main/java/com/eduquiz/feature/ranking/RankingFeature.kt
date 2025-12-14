@@ -3,6 +3,7 @@ package com.eduquiz.feature.ranking
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,11 +52,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import com.eduquiz.core.resources.resolveCosmeticOverlayModel
+import com.eduquiz.data.repository.CosmeticCatalog
 import com.eduquiz.domain.ranking.LeaderboardEntry
 import com.eduquiz.feature.ranking.RankingTab
 import com.eduquiz.feature.ranking.SortBy
@@ -95,6 +103,7 @@ fun RankingFeature(
                     userStats = state.userStats,
                     displayName = state.userDisplayName,
                     photoUrl = state.userPhotoUrl,
+                    selectedCosmeticId = state.userSelectedCosmeticId,
                     modifier = Modifier.fillMaxWidth()
                 )
                 
@@ -468,13 +477,11 @@ private fun RankingRow(
                     modifier = Modifier.padding(end = 8.dp)
                 )
                 
-                AsyncImage(
-                    model = entry.photoUrl,
-                    contentDescription = entry.displayName,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
+                ProfilePhotoWithFrame(
+                    photoUrl = entry.photoUrl,
+                    displayName = entry.displayName,
+                    selectedCosmeticId = entry.selectedCosmeticId,
+                    size = 48.dp
                 )
                 
                 Column(modifier = Modifier.weight(1f)) {
@@ -517,6 +524,7 @@ private fun UserHeader(
     userStats: UserRankingStats?,
     displayName: String?,
     photoUrl: String?,
+    selectedCosmeticId: String?,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -534,13 +542,11 @@ private fun UserHeader(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = photoUrl,
-                contentDescription = "Tu perfil",
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
+            ProfilePhotoWithFrame(
+                photoUrl = photoUrl,
+                displayName = displayName ?: "Usuario",
+                selectedCosmeticId = selectedCosmeticId,
+                size = 64.dp
             )
             
             Column(modifier = Modifier.weight(1f)) {
@@ -675,13 +681,11 @@ private fun StickyUserRow(
                     }
                 }
                 
-                AsyncImage(
-                    model = userEntry.photoUrl,
-                    contentDescription = "Tu perfil",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
+                ProfilePhotoWithFrame(
+                    photoUrl = userEntry.photoUrl,
+                    displayName = userEntry.displayName,
+                    selectedCosmeticId = userEntry.selectedCosmeticId,
+                    size = 40.dp
                 )
                 
                 Text(
@@ -707,6 +711,66 @@ private fun StickyUserRow(
                 Text(
                     text = "${userStats.examsCompleted} exámenes",
                     style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfilePhotoWithFrame(
+    photoUrl: String?,
+    displayName: String,
+    selectedCosmeticId: String?,
+    size: Dp,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val gifImageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components {
+                if (android.os.Build.VERSION.SDK_INT >= 28) {
+                    add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+            }
+            .build()
+    }
+
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.Center
+    ) {
+        AsyncImage(
+            model = photoUrl,
+            contentDescription = displayName,
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
+        
+        if (selectedCosmeticId == "basic_frame") {
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .border(
+                        width = 3.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = CircleShape
+                    )
+            )
+        } else if (selectedCosmeticId != null) {
+            val cosmetic = CosmeticCatalog.COSMETICS.find { it.cosmeticId == selectedCosmeticId }
+            cosmetic?.overlayImageUrl?.let { overlayUrl ->
+                val overlayModel = resolveCosmeticOverlayModel(context, overlayUrl)
+                AsyncImage(
+                    model = overlayModel,
+                    imageLoader = gifImageLoader,
+                    contentDescription = "Marco de perfil",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
                 )
             }
         }

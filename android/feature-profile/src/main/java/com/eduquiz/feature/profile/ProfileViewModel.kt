@@ -10,6 +10,7 @@ import com.eduquiz.domain.profile.Achievement
 import com.eduquiz.domain.profile.ProfileRepository
 import com.eduquiz.domain.profile.SyncState
 import com.eduquiz.domain.profile.UserProfile
+import com.eduquiz.domain.profile.UserStats
 import com.eduquiz.domain.store.StoreRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -66,6 +67,9 @@ class ProfileViewModel @Inject constructor(
 
     private val _achievements = MutableStateFlow<List<Achievement>>(emptyList())
     val achievements: StateFlow<List<Achievement>> = _achievements.asStateFlow()
+    
+    private val _userStats = MutableStateFlow<UserStats?>(null)
+    val userStats: StateFlow<UserStats?> = _userStats.asStateFlow()
 
     private val _uploadError = MutableStateFlow<String?>(null)
     val uploadError: StateFlow<String?> = _uploadError.asStateFlow()
@@ -76,13 +80,20 @@ class ProfileViewModel @Inject constructor(
     fun initialize(uid: String) {
         if (_currentUid.value != uid) {
             _currentUid.value = uid
-            // Cargar logros cuando se inicializa
             viewModelScope.launch {
                 try {
                     _achievements.value = profileRepository.getAchievements(uid)
                 } catch (e: Exception) {
                     android.util.Log.e("ProfileViewModel", "Error loading achievements", e)
                     _achievements.value = emptyList()
+                }
+            }
+            viewModelScope.launch {
+                try {
+                    _userStats.value = profileRepository.getUserStats(uid)
+                } catch (e: Exception) {
+                    android.util.Log.e("ProfileViewModel", "Error loading user stats", e)
+                    _userStats.value = null
                 }
             }
         }

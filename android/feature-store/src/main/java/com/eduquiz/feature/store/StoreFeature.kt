@@ -58,6 +58,7 @@ import coil.compose.AsyncImage
 import coil.decode.Decoder
 import com.eduquiz.core.resources.resolveCosmeticOverlayModel
 import com.eduquiz.domain.store.Cosmetic
+import com.eduquiz.domain.store.CosmeticCategory
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 
 @Composable
@@ -117,7 +118,12 @@ fun StoreFeature(
                 CoinBalanceChip(coins = state.currentCoins)
             }
 
-            CategoryChipsRow()
+            CategoryChipsRow(
+                selectedCategory = state.selectedCategory,
+                onCategorySelected = { category ->
+                    storeViewModel.selectCategory(category)
+                }
+            )
         }
 
         Surface(
@@ -154,7 +160,7 @@ fun StoreFeature(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(state.catalog) { cosmetic ->
+                        items(state.filteredCatalog) { cosmetic ->
                             CosmeticCard(
                                 cosmetic = cosmetic,
                                 isPurchased = state.purchasedCosmetics.contains(cosmetic.cosmeticId),
@@ -372,12 +378,20 @@ private fun StoreActionButton(
     when {
         isEquipped -> {
             OutlinedButton(onClick = {}, enabled = false, shape = shape, modifier = modifier) {
-                Text("Equipado")
+                Text(
+                    text = if (compact) "✓" else "Equipado",
+                    style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium,
+                    maxLines = 1
+                )
             }
         }
         isPurchased -> {
             Button(onClick = onEquip, shape = shape, modifier = modifier) {
-                Text("Equipar")
+                Text(
+                    text = "Equipar",
+                    style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium,
+                    maxLines = 1
+                )
             }
         }
         else -> {
@@ -387,7 +401,11 @@ private fun StoreActionButton(
                 shape = shape,
                 modifier = modifier
             ) {
-                Text(if (canAfford) "Comprar" else "Insuficientes")
+                Text(
+                    text = if (canAfford) "Comprar" else if (compact) "Sin $" else "Insuficientes",
+                    style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium,
+                    maxLines = 1
+                )
             }
         }
     }
@@ -415,7 +433,10 @@ private fun CoinBalanceChip(coins: Int) {
 }
 
 @Composable
-private fun CategoryChipsRow() {
+private fun CategoryChipsRow(
+    selectedCategory: CosmeticCategory,
+    onCategorySelected: (CosmeticCategory) -> Unit
+) {
     val scrollState = rememberScrollState()
     Row(
         modifier = Modifier
@@ -424,8 +445,8 @@ private fun CategoryChipsRow() {
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         FilterChip(
-            selected = true,
-            onClick = {},
+            selected = selectedCategory == CosmeticCategory.ALL,
+            onClick = { onCategorySelected(CosmeticCategory.ALL) },
             label = { Text("Todo") },
             leadingIcon = { ChipSymbol("▦") },
             colors = FilterChipDefaults.filterChipColors(
@@ -437,49 +458,55 @@ private fun CategoryChipsRow() {
         )
 
         FilterChip(
-            selected = false,
-            onClick = {},
+            selected = selectedCategory == CosmeticCategory.ICONOS,
+            onClick = { onCategorySelected(CosmeticCategory.ICONOS) },
             label = { Text("Iconos") },
             leadingIcon = { ChipSymbol("★") },
             colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = Color.White,
+                selectedLabelColor = Color(0xFF1F2937),
                 containerColor = Color.Transparent,
                 labelColor = Color.White
             ),
             border = FilterChipDefaults.filterChipBorder(
                 enabled = true,
-                selected = false,
+                selected = selectedCategory == CosmeticCategory.ICONOS,
                 borderColor = Color.White.copy(alpha = 0.8f)
             )
         )
 
         FilterChip(
-            selected = false,
-            onClick = {},
+            selected = selectedCategory == CosmeticCategory.EFECTOS,
+            onClick = { onCategorySelected(CosmeticCategory.EFECTOS) },
             label = { Text("Efectos") },
             leadingIcon = { ChipSymbol("✦") },
             colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = Color.White,
+                selectedLabelColor = Color(0xFF1F2937),
                 containerColor = Color.Transparent,
                 labelColor = Color.White
             ),
             border = FilterChipDefaults.filterChipBorder(
                 enabled = true,
-                selected = false,
+                selected = selectedCategory == CosmeticCategory.EFECTOS,
                 borderColor = Color.White.copy(alpha = 0.8f)
             )
         )
 
         FilterChip(
-            selected = false,
-            onClick = {},
+            selected = selectedCategory == CosmeticCategory.PREMIUM,
+            onClick = { onCategorySelected(CosmeticCategory.PREMIUM) },
             label = { Text("Premium") },
             leadingIcon = { ChipSymbol("♛") },
             colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = Color.White,
+                selectedLabelColor = Color(0xFF1F2937),
                 containerColor = Color.Transparent,
                 labelColor = Color.White
             ),
             border = FilterChipDefaults.filterChipBorder(
                 enabled = true,
-                selected = false,
+                selected = selectedCategory == CosmeticCategory.PREMIUM,
                 borderColor = Color.White.copy(alpha = 0.8f)
             )
         )
@@ -551,12 +578,12 @@ private fun CosmeticPreview(
     }
 
     Box(
-        modifier = modifier.clip(CircleShape),
+        modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .size(70.dp)
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
@@ -579,7 +606,7 @@ private fun CosmeticPreview(
         if (cosmeticId == "basic_frame") {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .size(70.dp)
                     .border(
                         width = 4.dp,
                         color = MaterialTheme.colorScheme.primary,

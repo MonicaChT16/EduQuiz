@@ -135,14 +135,16 @@ class RankingViewModel @Inject constructor(
             updateUserStats(
                 totalScore = totalScore,
                 displayName = profile?.displayName,
-                photoUrl = profile?.photoUrl
+                photoUrl = profile?.photoUrl,
+                selectedCosmeticId = profile?.selectedCosmeticId
             )
         } else {
-            // Actualizar solo displayName y photoUrl si el XP es el mismo
+            // Actualizar solo displayName, photoUrl y selectedCosmeticId si el XP es el mismo
             _state.update {
                 it.copy(
                     userDisplayName = profile?.displayName ?: it.userDisplayName,
-                    userPhotoUrl = profile?.photoUrl ?: it.userPhotoUrl
+                    userPhotoUrl = profile?.photoUrl ?: it.userPhotoUrl,
+                    userSelectedCosmeticId = profile?.selectedCosmeticId
                 )
             }
         }
@@ -184,7 +186,8 @@ class RankingViewModel @Inject constructor(
         accuracy: Float? = null,
         examsCompleted: Int? = null,
         displayName: String? = null,
-        photoUrl: String? = null
+        photoUrl: String? = null,
+        selectedCosmeticId: String? = null
     ) {
         val currentStats = _state.value.userStats
         val previousPosition = currentStats?.position
@@ -236,7 +239,8 @@ class RankingViewModel @Inject constructor(
             it.copy(
                 userStats = updatedStats,
                 userDisplayName = displayName ?: it.userDisplayName,
-                userPhotoUrl = photoUrl ?: it.userPhotoUrl
+                userPhotoUrl = photoUrl ?: it.userPhotoUrl,
+                userSelectedCosmeticId = selectedCosmeticId ?: it.userSelectedCosmeticId
             ) 
         }
     }
@@ -699,5 +703,6 @@ data class RankingState(
     val userEntry: LeaderboardEntry? = null,
     val userDisplayName: String? = null,
     val userPhotoUrl: String? = null,
+    val userSelectedCosmeticId: String? = null,
     val sortBy: SortBy = SortBy.SCORE
 )

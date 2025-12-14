@@ -10,6 +10,7 @@ import com.eduquiz.domain.profile.InventoryItem
 import com.eduquiz.domain.profile.ProfileRepository
 import com.eduquiz.domain.profile.SyncState
 import com.eduquiz.domain.profile.UserProfile
+import com.eduquiz.domain.profile.UserStats
 import com.google.firebase.firestore.FirebaseFirestore
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -157,4 +158,26 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override suspend fun getAchievements(uid: String): List<Achievement> =
         achievementsDao.getAchievements(uid).map { it.toDomain() }
+    
+    override suspend fun getUserStats(uid: String): UserStats? {
+        return try {
+            val userDoc = firestore.collection("users").document(uid).get().await()
+            
+            if (!userDoc.exists()) {
+                android.util.Log.d("ProfileRepository", "User document not found in Firestore for $uid")
+                return null
+            }
+            
+            UserStats(
+                totalXp = userDoc.getLong("totalXp") ?: 0L,
+                totalScore = (userDoc.getLong("totalScore") ?: 0L).toInt(),
+                totalAttempts = (userDoc.getLong("totalAttempts") ?: 0L).toInt(),
+                totalCorrectAnswers = (userDoc.getLong("totalCorrectAnswers") ?: 0L).toInt(),
+                totalQuestions = (userDoc.getLong("totalQuestions") ?: 0L).toInt()
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("ProfileRepository", "Error getting user stats from Firestore", e)
+            null
+        }
+    }
 }

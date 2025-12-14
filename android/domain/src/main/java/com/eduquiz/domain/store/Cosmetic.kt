@@ -1,5 +1,12 @@
 package com.eduquiz.domain.store
 
+enum class CosmeticCategory {
+    ALL,
+    ICONOS,
+    EFECTOS,
+    PREMIUM
+}
+
 /**
  * Modelo de dominio para un cosmético.
  * Los cosméticos funcionan como overlays/decoraciones sobre la foto de perfil (estilo Discord).
@@ -13,6 +20,7 @@ data class Cosmetic(
      * URL de la imagen del overlay que se superpone sobre la foto de perfil.
      * Si es null, no hay overlay (cosmético desactivado).
      */
-    val overlayImageUrl: String? = null
+    val overlayImageUrl: String? = null,
+    val category: CosmeticCategory = CosmeticCategory.ALL
 )
 
