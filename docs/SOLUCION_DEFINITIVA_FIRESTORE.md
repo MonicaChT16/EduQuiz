@@ -153,3 +153,4 @@ PackRemoteDataSource: Successfully fetched pack meta: pack_2025_w01
 
 Comparte los logs completos de Logcat filtrados por `PackRemoteDataSource` o `EduQuizApp` para diagnosticar el problema específico.
 
+

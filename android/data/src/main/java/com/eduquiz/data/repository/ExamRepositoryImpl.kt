@@ -94,6 +94,9 @@ class ExamRepositoryImpl @Inject constructor(
     override suspend fun getAttempts(uid: String): List<ExamAttempt> =
         examDao.getAttempts(uid).map { it.toDomain() }
 
+    override suspend fun getAttemptById(attemptId: String): ExamAttempt? =
+        examDao.getAttemptById(attemptId)?.toDomain()
+
     override suspend fun getAnswersForAttempt(attemptId: String): List<ExamAnswer> =
         examDao.getAnswers(attemptId).map { it.toDomain() }
 

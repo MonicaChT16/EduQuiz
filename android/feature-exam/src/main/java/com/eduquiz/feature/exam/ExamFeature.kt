@@ -121,18 +121,50 @@ fun ExamFeature(
         ExamStage.Finished -> {
             // Si el examen fue cancelado por hacer trampa, redirigir a Home inmediatamente
             LaunchedEffect(state.finishedStatus) {
-                if (state.finishedStatus == com.eduquiz.domain.exam.ExamStatus.CANCELLED_CHEAT) {
-                    android.util.Log.w("ExamFeature", "Exam cancelled due to cheating - redirecting to Home")
-                    kotlinx.coroutines.delay(500) // Pequeño delay para mostrar el estado
-                    onExit()
+                try {
+                    if (state.finishedStatus == com.eduquiz.domain.exam.ExamStatus.CANCELLED_CHEAT) {
+                        android.util.Log.w("ExamFeature", "Exam cancelled due to cheating - redirecting to Home")
+                        kotlinx.coroutines.delay(500) // Pequeño delay para mostrar el estado
+                        onExit()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("ExamFeature", "Error in LaunchedEffect for CANCELLED_CHEAT", e)
                 }
             }
-            ExamResultScreen(
-                attemptId = state.attemptId,
-                onExit = onExit,
-                modifier = modifier,
-                viewModel = viewModel
-            )
+            
+            // Validar que tenemos attemptId antes de mostrar la pantalla
+            if (state.attemptId != null) {
+                ExamResultScreen(
+                    attemptId = state.attemptId,
+                    onExit = onExit,
+                    modifier = modifier,
+                    viewModel = viewModel
+                )
+            } else {
+                // Si no hay attemptId, mostrar mensaje y opción de salir
+                android.util.Log.w("ExamFeature", "ExamStage.Finished but attemptId is null")
+                Column(
+                    modifier = modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Examen completado",
+                        style = MaterialTheme.typography.headlineMedium
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Tu examen se ha guardado correctamente.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(onClick = onExit) {
+                        Text(text = "Volver al inicio")
+                    }
+                }
+            }
         }
     }
 }
@@ -520,8 +552,18 @@ private fun ExamResultScreen(
     var showReview by remember { mutableStateOf(false) }
     
     LaunchedEffect(attemptId) {
-        if (attemptId != null) {
-            viewModel.loadResult(attemptId)
+        try {
+            if (attemptId != null && resultState?.attemptId != attemptId) {
+                // Solo cargar si no está ya cargado o si es un attemptId diferente
+                android.util.Log.d("ExamFeature", "ExamResultScreen: Loading result for attemptId=$attemptId")
+                viewModel.loadResult(attemptId)
+            } else if (attemptId != null) {
+                android.util.Log.d("ExamFeature", "ExamResultScreen: Result already loaded for attemptId=$attemptId")
+            } else {
+                android.util.Log.w("ExamFeature", "ExamResultScreen: attemptId is null, cannot load result")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ExamFeature", "ExamResultScreen: Error in LaunchedEffect", e)
         }
     }
 
@@ -541,31 +583,74 @@ private fun ExamResultScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (resultState == null) {
-                    CircularProgressIndicator()
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        CircularProgressIndicator()
+                        Text(
+                            text = "Cargando resultados...",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 } else {
                     val result = resultState!!
-                    Text(text = "Resultados", style = MaterialTheme.typography.headlineMedium)
-                    Text(
-                        text = "Estado: ${result.status}",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = "Puntaje: ${result.scoreRaw}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Preguntas respondidas: ${result.answeredCount}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(onClick = { showReview = true }) {
-                            Text(text = "Ver Revisión")
-                        }
-                        OutlinedButton(onClick = onExit) {
+                    
+                    // Mostrar error si el estado es de error
+                    if (result.status == "ERROR" || result.status == "NOT_FOUND") {
+                        Text(
+                            text = "Error al cargar resultados",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = "No se pudieron cargar los resultados del examen. Tu examen fue guardado correctamente.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Button(onClick = onExit) {
                             Text(text = "Volver")
+                        }
+                    } else {
+                        Text(text = "Resultados", style = MaterialTheme.typography.headlineMedium)
+                        Text(
+                            text = "Estado: ${result.status}",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "Puntaje: ${result.scoreRaw}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Preguntas respondidas: ${result.answeredCount}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = { showReview = true },
+                                enabled = reviewData.isNotEmpty()
+                            ) {
+                                Text(text = "Ver Revisión")
+                            }
+                            OutlinedButton(onClick = onExit) {
+                                Text(text = "Volver")
+                            }
+                        }
+                        if (reviewData.isEmpty() && result.answeredCount > 0) {
+                            Text(
+                                text = "Cargando datos de revisión...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        } else if (reviewData.isEmpty() && result.answeredCount == 0) {
+                            Text(
+                                text = "No hay respuestas para revisar",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
