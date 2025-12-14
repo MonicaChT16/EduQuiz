@@ -51,4 +51,6 @@ interface ProfileRepository {
 
     suspend fun unlockAchievement(achievement: Achievement)
     suspend fun getAchievements(uid: String): List<Achievement>
+    
+    suspend fun getUserStats(uid: String): UserStats?
 }

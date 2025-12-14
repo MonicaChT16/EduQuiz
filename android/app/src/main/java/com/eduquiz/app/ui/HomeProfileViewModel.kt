@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.eduquiz.domain.profile.ProfileRepository
 import com.eduquiz.domain.profile.UserProfile
 import com.eduquiz.domain.profile.SyncState
+import com.eduquiz.domain.store.StoreRepository
 import com.eduquiz.feature.auth.data.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -22,7 +23,8 @@ import java.lang.System
 @HiltViewModel
 class HomeProfileViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository,
+    private val storeRepository: StoreRepository
 ) : ViewModel() {
 
     val profile: Flow<UserProfile?> = authRepository.authState.flatMapLatest { user ->
@@ -56,6 +58,19 @@ class HomeProfileViewModel @Inject constructor(
                 )
                 _notificationsEnabled.value = enabled
             }
+        }
+    }
+
+    /**
+     * Obtiene la URL/ref del overlay del cosmético desde el catálogo.
+     */
+    suspend fun getCosmeticOverlayUrl(cosmeticId: String): String? {
+        return try {
+            val catalog = storeRepository.getCatalog()
+            catalog.find { it.cosmeticId == cosmeticId }?.overlayImageUrl
+        } catch (e: Exception) {
+            android.util.Log.e("HomeProfileViewModel", "Error getting cosmetic overlay URL", e)
+            null
         }
     }
 }

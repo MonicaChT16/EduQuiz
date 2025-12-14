@@ -36,6 +36,7 @@ kapt {
 dependencies {
     implementation(project(":core"))
     implementation(project(":domain"))
+    implementation(project(":data"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.material3)
@@ -54,4 +55,5 @@ dependencies {
     
     // Para cargar imágenes desde URL
     implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.coil-kt:coil-gif:2.5.0")
 }

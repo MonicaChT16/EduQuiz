@@ -20,42 +20,48 @@ object CosmeticCatalog {
             name = "Marco Básico",
             cost = 0, // Gratis - cosmético inicial
             description = "Un marco simple y elegante para tu foto de perfil",
-            overlayImageUrl = null // Se renderiza como borde simple en la UI
+            overlayImageUrl = null, // Se renderiza como borde simple en la UI
+            category = com.eduquiz.domain.store.CosmeticCategory.ALL
         ),
         Cosmetic(
             cosmeticId = "crown_gold",
             name = "Corona Dorada",
             cost = 100,
             description = "Una elegante corona dorada sobre tu foto",
-            overlayImageUrl = "drawable://corona_dorada"
+            overlayImageUrl = "drawable://corona_dorada",
+            category = com.eduquiz.domain.store.CosmeticCategory.EFECTOS
         ),
         Cosmetic(
             cosmeticId = "star_gold",
             name = "Estrella Dorada",
             cost = 150,
             description = "Una estrella brillante en tu foto",
-            overlayImageUrl = "drawable://estrella_dorada"
+            overlayImageUrl = "drawable://estrella_dorada",
+            category = com.eduquiz.domain.store.CosmeticCategory.ICONOS
         ),
         Cosmetic(
             cosmeticId = "badge_champion",
             name = "Insignia de Campeón",
             cost = 200,
             description = "Insignia de campeón académico",
-            overlayImageUrl = "drawable://insignia_campeon"
+            overlayImageUrl = "drawable://insignia_campeon",
+            category = com.eduquiz.domain.store.CosmeticCategory.PREMIUM
         ),
         Cosmetic(
             cosmeticId = "halo_gold",
             name = "Aureola Dorada",
             cost = 300,
             description = "Una aureola brillante alrededor de tu foto",
-            overlayImageUrl = "drawable://aureola_dorada"
+            overlayImageUrl = "drawable://aureola_dorada",
+            category = com.eduquiz.domain.store.CosmeticCategory.ICONOS
         ),
         Cosmetic(
             cosmeticId = "frame_gold",
             name = "Marco Dorado",
             cost = 250,
             description = "Un marco elegante alrededor de tu foto",
-            overlayImageUrl = "drawable://marco_dorado"
+            overlayImageUrl = "drawable://marco_dorado",
+            category = com.eduquiz.domain.store.CosmeticCategory.ICONOS
         )
     )
 }
