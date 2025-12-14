@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -117,12 +118,54 @@ fun ExamFeature(
                 modifier = modifier
             )
         }
-        ExamStage.Finished -> ExamResultScreen(
-            attemptId = state.attemptId,
-            onExit = onExit,
-            modifier = modifier,
-            viewModel = viewModel
-        )
+        ExamStage.Finished -> {
+            // Si el examen fue cancelado por hacer trampa, redirigir a Home inmediatamente
+            LaunchedEffect(state.finishedStatus) {
+                try {
+                    if (state.finishedStatus == com.eduquiz.domain.exam.ExamStatus.CANCELLED_CHEAT) {
+                        android.util.Log.w("ExamFeature", "Exam cancelled due to cheating - redirecting to Home")
+                        kotlinx.coroutines.delay(500) // Pequeño delay para mostrar el estado
+                        onExit()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("ExamFeature", "Error in LaunchedEffect for CANCELLED_CHEAT", e)
+                }
+            }
+            
+            // Validar que tenemos attemptId antes de mostrar la pantalla
+            if (state.attemptId != null) {
+                ExamResultScreen(
+                    attemptId = state.attemptId,
+                    onExit = onExit,
+                    modifier = modifier,
+                    viewModel = viewModel
+                )
+            } else {
+                // Si no hay attemptId, mostrar mensaje y opción de salir
+                android.util.Log.w("ExamFeature", "ExamStage.Finished but attemptId is null")
+                Column(
+                    modifier = modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Examen completado",
+                        style = MaterialTheme.typography.headlineMedium
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Tu examen se ha guardado correctamente.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(onClick = onExit) {
+                        Text(text = "Volver al inicio")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -133,6 +176,8 @@ private fun ExamStartScreen(
     modifier: Modifier = Modifier,
     viewModel: ExamViewModel = hiltViewModel()
 ) {
+    var showConfirmDialog by remember { mutableStateOf<String?>(null) }
+    
     Surface(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -181,6 +226,42 @@ private fun ExamStartScreen(
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                        
+                        // Preview de materias disponibles
+                        Text(
+                            text = "Materias disponibles:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(
+                                com.eduquiz.domain.pack.Subject.MATEMATICA,
+                                com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA,
+                                com.eduquiz.domain.pack.Subject.CIENCIAS
+                            ).forEach { subject ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "• ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        text = "Disponible",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -214,6 +295,29 @@ private fun ExamStartScreen(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.primary
                 )
+            }
+            
+            // Indicador de carga de preguntas
+            if (state.isLoadingQuestions) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(32.dp),
+                            strokeWidth = 3.dp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = state.questionsLoadProgress ?: "Cargando preguntas...",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
             }
 
             // Mensaje de error
@@ -276,32 +380,71 @@ private fun ExamStartScreen(
                     SubjectButton(
                         subject = com.eduquiz.domain.pack.Subject.MATEMATICA,
                         onClick = { 
-                            android.util.Log.d("ExamFeature", "Matemática button clicked")
-                            viewModel.startExam(com.eduquiz.domain.pack.Subject.MATEMATICA) 
+                            showConfirmDialog = com.eduquiz.domain.pack.Subject.MATEMATICA
                         },
-                        enabled = !state.isBusy && state.totalQuestions > 0,
-                        isLoading = state.isBusy
+                        enabled = !state.isBusy && state.totalQuestions > 0 && !state.isLoadingQuestions,
+                        isLoading = state.isBusy || state.isLoadingQuestions
                     )
                     
                     SubjectButton(
                         subject = com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA,
                         onClick = { 
-                            android.util.Log.d("ExamFeature", "Comprensión lectora button clicked")
-                            viewModel.startExam(com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA) 
+                            showConfirmDialog = com.eduquiz.domain.pack.Subject.COMPRENSION_LECTORA
                         },
-                        enabled = !state.isBusy && state.totalQuestions > 0,
-                        isLoading = state.isBusy
+                        enabled = !state.isBusy && state.totalQuestions > 0 && !state.isLoadingQuestions,
+                        isLoading = state.isBusy || state.isLoadingQuestions
                     )
                     
                     SubjectButton(
                         subject = com.eduquiz.domain.pack.Subject.CIENCIAS,
                         onClick = { 
-                            android.util.Log.d("ExamFeature", "Ciencias button clicked")
-                            viewModel.startExam(com.eduquiz.domain.pack.Subject.CIENCIAS) 
+                            showConfirmDialog = com.eduquiz.domain.pack.Subject.CIENCIAS
                         },
-                        enabled = !state.isBusy && state.totalQuestions > 0,
-                        isLoading = state.isBusy
+                        enabled = !state.isBusy && state.totalQuestions > 0 && !state.isLoadingQuestions,
+                        isLoading = state.isBusy || state.isLoadingQuestions
                     )
+                    
+                    // Diálogo de confirmación
+                    showConfirmDialog?.let { subject ->
+                        AlertDialog(
+                            onDismissRequest = { showConfirmDialog = null },
+                            title = { 
+                                Text(
+                                    text = "Iniciar examen",
+                                    style = MaterialTheme.typography.titleLarge
+                                ) 
+                            },
+                            text = {
+                                Column {
+                                    Text(
+                                        text = "¿Estás listo para comenzar el examen de ${com.eduquiz.domain.pack.Subject.getDisplayName(subject)}?",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "• 10 preguntas\n• 20 minutos de duración\n• Las capturas están bloqueadas\n• Salir 2 veces anula el intento",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        android.util.Log.d("ExamFeature", "$subject button clicked - confirmed")
+                                        viewModel.startExam(subject)
+                                        showConfirmDialog = null
+                                    }
+                                ) {
+                                    Text("Iniciar")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showConfirmDialog = null }) {
+                                    Text("Cancelar")
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -337,6 +480,13 @@ private fun ExamInProgressScreen(
                 currentIndex = state.currentIndex,
                 totalQuestions = state.totalQuestions
             )
+            
+            // Indicador de progreso de respuestas
+            ProgressIndicatorCard(
+                answeredCount = state.answeredCount,
+                totalQuestions = state.totalQuestions
+            )
+            
             Card(
                 modifier = Modifier
                     .weight(1f)
@@ -402,8 +552,18 @@ private fun ExamResultScreen(
     var showReview by remember { mutableStateOf(false) }
     
     LaunchedEffect(attemptId) {
-        if (attemptId != null) {
-            viewModel.loadResult(attemptId)
+        try {
+            if (attemptId != null && resultState?.attemptId != attemptId) {
+                // Solo cargar si no está ya cargado o si es un attemptId diferente
+                android.util.Log.d("ExamFeature", "ExamResultScreen: Loading result for attemptId=$attemptId")
+                viewModel.loadResult(attemptId)
+            } else if (attemptId != null) {
+                android.util.Log.d("ExamFeature", "ExamResultScreen: Result already loaded for attemptId=$attemptId")
+            } else {
+                android.util.Log.w("ExamFeature", "ExamResultScreen: attemptId is null, cannot load result")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ExamFeature", "ExamResultScreen: Error in LaunchedEffect", e)
         }
     }
 
@@ -423,31 +583,74 @@ private fun ExamResultScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (resultState == null) {
-                    CircularProgressIndicator()
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        CircularProgressIndicator()
+                        Text(
+                            text = "Cargando resultados...",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 } else {
                     val result = resultState!!
-                    Text(text = "Resultados", style = MaterialTheme.typography.headlineMedium)
-                    Text(
-                        text = "Estado: ${result.status}",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = "Puntaje: ${result.scoreRaw}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Preguntas respondidas: ${result.answeredCount}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(onClick = { showReview = true }) {
-                            Text(text = "Ver Revisión")
-                        }
-                        OutlinedButton(onClick = onExit) {
+                    
+                    // Mostrar error si el estado es de error
+                    if (result.status == "ERROR" || result.status == "NOT_FOUND") {
+                        Text(
+                            text = "Error al cargar resultados",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = "No se pudieron cargar los resultados del examen. Tu examen fue guardado correctamente.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Button(onClick = onExit) {
                             Text(text = "Volver")
+                        }
+                    } else {
+                        Text(text = "Resultados", style = MaterialTheme.typography.headlineMedium)
+                        Text(
+                            text = "Estado: ${result.status}",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "Puntaje: ${result.scoreRaw}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Preguntas respondidas: ${result.answeredCount}${if (result.totalQuestions > 0) " / ${result.totalQuestions}" else ""}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = { showReview = true },
+                                enabled = reviewData.isNotEmpty()
+                            ) {
+                                Text(text = "Ver Revisión")
+                            }
+                            OutlinedButton(onClick = onExit) {
+                                Text(text = "Volver")
+                            }
+                        }
+                        if (reviewData.isEmpty() && result.answeredCount > 0) {
+                            Text(
+                                text = "Cargando datos de revisión...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        } else if (reviewData.isEmpty() && result.answeredCount == 0) {
+                            Text(
+                                text = "No hay respuestas para revisar",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
@@ -630,16 +833,44 @@ private fun SubjectButton(
 @Composable
 private fun WarningDialog(onDismiss: () -> Unit) {
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {}, // No permitir cerrar tocando fuera
         confirmButton = {
-            Button(onClick = onDismiss) {
-                Text(text = "Entendido")
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text(text = "Entendido", color = MaterialTheme.colorScheme.onError)
             }
         },
-        title = { Text(text = "Advertencia") },
+        title = { 
+            Text(
+                text = "⚠️ ADVERTENCIA CRÍTICA",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.error
+            ) 
+        },
         text = {
-            Text(text = "Si sales una vez más, el examen se enviará automáticamente.")
-        }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Has minimizado la aplicación durante el examen.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Si sales o cambias de ventana UNA VEZ MÁS, el examen se suspenderá inmediatamente y se marcará como ANULADO/REPROBADO.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Text(
+                    text = "Por favor, mantén la aplicación abierta hasta completar el examen.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.errorContainer
     )
 }
 
@@ -684,6 +915,53 @@ private fun formatMillis(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
+}
+
+@Composable
+private fun ProgressIndicatorCard(
+    answeredCount: Int,
+    totalQuestions: Int
+) {
+    val progress = if (totalQuestions > 0) {
+        answeredCount.toFloat() / totalQuestions.toFloat()
+    } else {
+        0f
+    }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Progreso",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "$answeredCount / $totalQuestions preguntas respondidas",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth(),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
 }
 
 @Composable

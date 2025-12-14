@@ -2,6 +2,7 @@ package com.eduquiz.app.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material3.Button
@@ -37,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +63,7 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import com.eduquiz.app.R // Importación para acceder a los recursos
 import com.eduquiz.app.navigation.RootDestination
+import com.eduquiz.core.resources.resolveCosmeticOverlayModel
 import com.eduquiz.feature.auth.presentation.AuthViewModel
 import com.eduquiz.feature.auth.model.AuthState
 import com.eduquiz.domain.pack.Subject
@@ -70,9 +72,11 @@ import com.eduquiz.feature.exam.ExamNavigationHelper
 @Composable
 fun HomeScreen(
     onNavigate: (RootDestination) -> Unit,
-    authViewModel: AuthViewModel = hiltViewModel()
+    authViewModel: AuthViewModel = hiltViewModel(),
+    homeProfileViewModel: HomeProfileViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.state.collectAsStateWithLifecycle()
+    val notificationsEnabled by homeProfileViewModel.notificationsEnabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val imageLoader = ImageLoader.Builder(context)
         .components {
@@ -123,6 +127,7 @@ fun HomeScreen(
             // Header con perfil, XP, monedas y notificaciones
             HomeHeader(
                 authState = authState,
+                notificationsEnabled = notificationsEnabled,
                 onNotificationClick = { onNavigate(RootDestination.Notifications) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -153,7 +158,7 @@ fun HomeScreen(
             }
 
 
-            // Cuerpo principal con GIF del robot y botón tienda
+            // Cuerpo principal con GIF del robot
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -171,37 +176,6 @@ fun HomeScreen(
                         .clip(RoundedCornerShape(24.dp))
                 )
 
-                // Botón Tienda - fijo en la esquina superior derecha
-                Button(
-                    onClick = { onNavigate(RootDestination.Store) },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .width(80.dp)
-                        .height(64.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4A5F8F).copy(alpha = 0.9f)
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ShoppingCart,
-                            contentDescription = "Tienda",
-                            modifier = Modifier.size(24.dp),
-                            tint = Color.White
-                        )
-                        Text(
-                            text = "Tienda",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White,
-                            fontSize = 10.sp
-                        )
-                    }
-                }
             }
 
 
@@ -436,11 +410,33 @@ private fun getSubjectCodeFromDisplayName(displayName: String): String? {
 @Composable
 fun HomeHeader(
     authState: AuthState,
+    notificationsEnabled: Boolean,
     onNotificationClick: () -> Unit,
     modifier: Modifier = Modifier,
     profileViewModel: HomeProfileViewModel = hiltViewModel()
 ) {
     val profile by profileViewModel.profile.collectAsStateWithLifecycle(initialValue = null)
+    val context = LocalContext.current
+    val gifImageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components {
+                if (Build.VERSION.SDK_INT >= 28) {
+                    add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+            }
+            .build()
+    }
+
+    var cosmeticOverlayUrl: String? by remember { mutableStateOf(null) }
+    LaunchedEffect(profile?.selectedCosmeticId) {
+        profile?.selectedCosmeticId?.let { cosmeticId ->
+            cosmeticOverlayUrl = profileViewModel.getCosmeticOverlayUrl(cosmeticId)
+        } ?: run {
+            cosmeticOverlayUrl = null
+        }
+    }
     
     Row(
         modifier = modifier,
@@ -466,6 +462,7 @@ fun HomeHeader(
                     contentAlignment = Alignment.Center
                 ) {
                     val photoUrl = profile?.photoUrl
+                    val selectedCosmeticId = profile?.selectedCosmeticId
                     if (photoUrl != null) {
                         // Mostrar la imagen del perfil si existe
                         AsyncImage(
@@ -484,6 +481,29 @@ fun HomeHeader(
                             modifier = Modifier.size(24.dp),
                             tint = Color.Gray
                         )
+                    }
+
+                    if (selectedCosmeticId == "basic_frame") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .border(
+                                    width = 3.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = CircleShape
+                                )
+                        )
+                    } else if (selectedCosmeticId != null) {
+                        val overlayModel = resolveCosmeticOverlayModel(context, cosmeticOverlayUrl)
+                        if (overlayModel != null) {
+                            AsyncImage(
+                                model = overlayModel,
+                                imageLoader = gifImageLoader,
+                                contentDescription = "Marco de perfil",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
                     }
                 }
             }
@@ -573,6 +593,7 @@ fun HomeHeader(
         // Botón Notificaciones
         IconButton(
             onClick = onNotificationClick,
+            enabled = notificationsEnabled, // Habilitar/deshabilitar según el estado
             modifier = Modifier.size(48.dp)
         ) {
             Surface(
@@ -589,7 +610,7 @@ fun HomeHeader(
                         imageVector = Icons.Default.Notifications,
                         contentDescription = "Notificaciones",
                         modifier = Modifier.size(24.dp),
-                        tint = Color.Black
+                        tint = if (notificationsEnabled) Color.Black else Color.LightGray // Cambiar color si está deshabilitado
                     )
                 }
             }

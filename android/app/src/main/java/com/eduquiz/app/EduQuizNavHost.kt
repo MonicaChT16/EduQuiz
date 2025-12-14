@@ -1,18 +1,26 @@
 package com.eduquiz.app
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.BottomAppBar
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -20,7 +28,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -96,7 +109,8 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
     val bottomNavItems = listOf(
         BottomNavItem(RootDestination.Home.route, "Inicio", Icons.Default.Home),
         BottomNavItem(RootDestination.Profile.route, "Perfil", Icons.Default.Person),
-        BottomNavItem(RootDestination.Ranking.route, "Tabla de clasificación", Icons.Default.Star),
+        BottomNavItem(RootDestination.Store.route, "Tienda", Icons.Default.ShoppingCart),
+        BottomNavItem(RootDestination.Ranking.route, "Tabla de\nclasificacion", Icons.Default.Star),
         BottomNavItem(RootDestination.Settings.route, "Ajustes", Icons.Default.Settings)
     )
 
@@ -104,24 +118,19 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
         modifier = modifier,
         bottomBar = {
             if (currentRoute != RootDestination.Auth.route && currentRoute != RootDestination.Pack.route && currentRoute != RootDestination.Exam.route && currentRoute != RootDestination.Notifications.route && currentRoute != RootDestination.About.route) {
-                BottomAppBar {
-                    bottomNavItems.forEach { item ->
-                        NavigationBarItem(
-                            icon = { Icon(item.icon, contentDescription = item.title) },
-                            label = { Text(item.title) },
-                            selected = currentRoute == item.route,
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                EduQuizBottomBar(
+                    items = bottomNavItems,
+                    currentRoute = currentRoute,
+                    onItemSelected = { item ->
+                        navController.navigate(item.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
                             }
-                        )
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
-                }
+                )
             }
         }
     ) { innerPadding ->
@@ -190,9 +199,26 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
                 )
             }
             composable(RootDestination.Notifications.route) {
-                NotificationsScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
+                val homeProfileViewModel: com.eduquiz.app.ui.HomeProfileViewModel = hiltViewModel()
+                val notificationsEnabled by homeProfileViewModel.notificationsEnabled.collectAsStateWithLifecycle()
+                val context = androidx.compose.ui.platform.LocalContext.current
+
+                androidx.compose.runtime.LaunchedEffect(notificationsEnabled) {
+                    if (!notificationsEnabled) {
+                        android.widget.Toast.makeText(
+                            context,
+                            "Notificaciones desactivadas en ajustes",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                        navController.popBackStack()
+                    }
+                }
+
+                if (notificationsEnabled) {
+                    NotificationsScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
             }
             // MERGE: Lista de exclusión actualizada para incluir Settings, About y Notifications
             RootDestination.allDestinations
@@ -207,6 +233,68 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
 }
 
 data class BottomNavItem(val route: String, val title: String, val icon: ImageVector)
+
+@Composable
+private fun EduQuizBottomBar(
+    items: List<BottomNavItem>,
+    currentRoute: String?,
+    onItemSelected: (BottomNavItem) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp),
+        color = Color.White.copy(alpha = 0.95f),
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items.forEach { item ->
+                EduQuizBottomNavItem(
+                    item = item,
+                    isSelected = currentRoute == item.route,
+                    onClick = { onItemSelected(item) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EduQuizBottomNavItem(
+    item: BottomNavItem,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(4.dp)
+    ) {
+        Icon(
+            imageVector = item.icon,
+            contentDescription = item.title,
+            tint = if (isSelected) Color.Black else Color.Gray,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = item.title,
+            color = if (isSelected) Color.Black else Color.Gray,
+            fontSize = 10.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            textAlign = TextAlign.Center,
+            lineHeight = 12.sp
+        )
+    }
+}
 
 @Composable
 private fun PlaceholderScreen(label: String, modifier: Modifier = Modifier) {

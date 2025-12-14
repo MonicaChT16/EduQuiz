@@ -43,6 +43,12 @@ interface ExamRepository {
     fun observeAttempts(uid: String): Flow<List<ExamAttempt>>
 
     suspend fun getAttempts(uid: String): List<ExamAttempt>
+    
+    /**
+     * Obtiene un intento específico por su ID.
+     */
+    suspend fun getAttemptById(attemptId: String): ExamAttempt?
+    
     suspend fun getAnswersForAttempt(attemptId: String): List<ExamAnswer>
 
     // Métodos legacy - mantener para compatibilidad

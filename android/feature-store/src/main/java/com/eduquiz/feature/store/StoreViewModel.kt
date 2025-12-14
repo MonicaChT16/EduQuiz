@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.eduquiz.domain.profile.ProfileRepository
 import com.eduquiz.domain.store.Cosmetic
+import com.eduquiz.domain.store.CosmeticCategory
 import com.eduquiz.domain.store.StoreRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -16,6 +17,8 @@ import kotlinx.coroutines.launch
 
 data class StoreUiState(
     val catalog: List<Cosmetic> = emptyList(),
+    val filteredCatalog: List<Cosmetic> = emptyList(),
+    val selectedCategory: CosmeticCategory = CosmeticCategory.ALL,
     val purchasedCosmetics: Set<String> = emptySet(),
     val selectedCosmeticId: String? = null,
     val currentCoins: Int = 0,
@@ -42,18 +45,15 @@ class StoreViewModel @Inject constructor(
             _state.update { it.copy(isLoading = true, errorMessage = null) }
             
             try {
-                // Cargar catálogo
                 val catalog = storeRepository.getCatalog()
-                
-                // Cargar inventario y perfil
                 val inventory = profileRepository.getInventory(uid)
                 val purchasedIds = inventory.map { it.cosmeticId }.toSet()
-                
                 val profile = profileRepository.observeProfile(uid).firstOrNull()
                 
                 _state.update {
                     it.copy(
                         catalog = catalog,
+                        filteredCatalog = catalog,
                         purchasedCosmetics = purchasedIds,
                         selectedCosmeticId = profile?.selectedCosmeticId,
                         currentCoins = profile?.coins ?: 0,
@@ -68,6 +68,20 @@ class StoreViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    fun selectCategory(category: CosmeticCategory) {
+        _state.update { currentState ->
+            val filtered = if (category == CosmeticCategory.ALL) {
+                currentState.catalog
+            } else {
+                currentState.catalog.filter { it.category == category }
+            }
+            currentState.copy(
+                selectedCategory = category,
+                filteredCatalog = filtered
+            )
         }
     }
 

@@ -91,28 +91,28 @@ fun UserProfileEntity.toDomain() = UserProfile(
     uid = uid,
     displayName = displayName,
     photoUrl = photoUrl,
-    schoolId = schoolId,
-    classroomId = classroomId,
+    schoolId = "", // Legacy - siempre vacío
+    classroomId = "", // Legacy - siempre vacío
     ugelCode = ugelCode,
     coins = coins,
     xp = xp,
     selectedCosmeticId = selectedCosmeticId,
     updatedAtLocal = updatedAtLocal,
     syncState = syncState,
+    notificationsEnabled = notificationsEnabled,
 )
 
 fun UserProfile.toEntity() = UserProfileEntity(
     uid = uid,
     displayName = displayName,
     photoUrl = photoUrl,
-    schoolId = schoolId,
-    classroomId = classroomId,
     ugelCode = ugelCode,
     coins = coins,
     xp = xp,
     selectedCosmeticId = selectedCosmeticId,
     updatedAtLocal = updatedAtLocal,
     syncState = syncState,
+    notificationsEnabled = notificationsEnabled,
 )
 
 fun InventoryEntity.toDomain() = InventoryItem(

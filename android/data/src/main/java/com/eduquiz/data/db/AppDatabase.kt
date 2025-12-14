@@ -36,7 +36,10 @@ data class PackEntity(
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("packId")]
+    indices = [
+        Index("packId"),
+        Index("packId", "subject") // Índice compuesto para búsquedas por packId y subject
+    ]
 )
 data class TextEntity(
     @PrimaryKey val textId: String,
@@ -62,7 +65,11 @@ data class TextEntity(
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("packId"), Index("textId")]
+    indices = [
+        Index("packId"), 
+        Index("textId"),
+        Index("packId", "textId") // Índice compuesto para búsquedas por packId y textId
+    ]
 )
 data class QuestionEntity(
     @PrimaryKey val questionId: String,
@@ -99,14 +106,13 @@ data class UserProfileEntity(
     @PrimaryKey val uid: String,
     val displayName: String,
     val photoUrl: String?,
-    val schoolId: String,
-    val classroomId: String,
     val ugelCode: String? = null, // Código UGEL ingresado por el usuario
     val coins: Int,
     val xp: Long = 0L, // Puntos de experiencia (acumulativo, nunca disminuye)
     val selectedCosmeticId: String?, // Nullable porque puede no tener cosmético equipado
     val updatedAtLocal: Long,
     val syncState: String,
+    val notificationsEnabled: Boolean = true, // Nuevo campo para controlar las notificaciones
 )
 
 @Entity(
@@ -272,6 +278,20 @@ interface PackDao {
     suspend fun findByStatus(status: String = PackStatus.ACTIVE): PackEntity?
 }
 
+// Clases de datos para queries de diagnóstico
+data class SubjectCount(
+    val subject: String,
+    val count: Int
+)
+
+data class QuestionSubjectInfo(
+    val questionId: String,
+    val textId: String,
+    val packId: String,
+    val text_subject: String,
+    val text_title: String
+)
+
 @Dao
 interface ContentDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -296,8 +316,34 @@ interface ContentDao {
         SELECT q.* FROM question_entity q
         INNER JOIN text_entity t ON q.textId = t.textId
         WHERE q.packId = :packId AND t.subject = :subject
+        ORDER BY q.questionId
     """)
     suspend fun getQuestionsByPackAndSubject(packId: String, subject: String): List<QuestionEntity>
+
+    // Query de diagnóstico: contar preguntas por subject en un pack
+    @Query("""
+        SELECT t.subject, COUNT(q.questionId) as count
+        FROM question_entity q
+        INNER JOIN text_entity t ON q.textId = t.textId
+        WHERE q.packId = :packId
+        GROUP BY t.subject
+    """)
+    suspend fun countQuestionsBySubject(packId: String): List<SubjectCount>
+
+    // Query de diagnóstico: obtener todas las relaciones question-text con subjects
+    @Query("""
+        SELECT 
+            q.questionId,
+            q.textId,
+            q.packId,
+            t.subject as text_subject,
+            t.title as text_title
+        FROM question_entity q
+        INNER JOIN text_entity t ON q.textId = t.textId
+        WHERE q.packId = :packId
+        ORDER BY t.subject, q.questionId
+    """)
+    suspend fun getQuestionsWithSubjectInfo(packId: String): List<QuestionSubjectInfo>
 
     @Query("SELECT * FROM option_entity WHERE questionId = :questionId")
     suspend fun getOptionsByQuestion(questionId: String): List<OptionEntity>
@@ -376,6 +422,20 @@ interface ProfileDao {
         """
     )
     suspend fun updateProfileSyncState(uid: String, syncState: String)
+
+    @Query(
+        """
+        UPDATE user_profile_entity
+        SET notificationsEnabled = :notificationsEnabled, updatedAtLocal = :updatedAtLocal, syncState = :syncState
+        WHERE uid = :uid
+        """
+    )
+    suspend fun updateNotificationsEnabled(
+        uid: String,
+        notificationsEnabled: Boolean,
+        updatedAtLocal: Long,
+        syncState: String
+    )
 }
 
 @Dao
@@ -478,7 +538,7 @@ interface OnboardingDao {
         ExamAnswerEntity::class,
         OnboardingPreferencesEntity::class,
     ],
-    version = 4,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -524,6 +584,57 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+            },
+            Migration(4, 5) { database ->
+                // Eliminar columnas schoolId y classroomId creando una nueva tabla sin ellas
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_profile_entity_new (
+                        uid TEXT NOT NULL,
+                        displayName TEXT NOT NULL,
+                        photoUrl TEXT,
+                        ugelCode TEXT,
+                        coins INTEGER NOT NULL,
+                        xp INTEGER NOT NULL,
+                        selectedCosmeticId TEXT,
+                        updatedAtLocal INTEGER NOT NULL,
+                        syncState TEXT NOT NULL,
+                        PRIMARY KEY(uid)
+                    )
+                    """.trimIndent()
+                )
+                
+                // Copiar datos excluyendo schoolId y classroomId
+                database.execSQL(
+                    """
+                    INSERT INTO user_profile_entity_new 
+                    (uid, displayName, photoUrl, ugelCode, coins, xp, selectedCosmeticId, updatedAtLocal, syncState)
+                    SELECT 
+                        uid, displayName, photoUrl, ugelCode, coins, xp, selectedCosmeticId, updatedAtLocal, syncState
+                    FROM user_profile_entity
+                    """.trimIndent()
+                )
+                
+                // Eliminar tabla vieja
+                database.execSQL("DROP TABLE user_profile_entity")
+                
+                // Renombrar nueva tabla
+                database.execSQL("ALTER TABLE user_profile_entity_new RENAME TO user_profile_entity")
+            },
+            Migration(5, 6) { database ->
+                // Agregar índices compuestos para optimizar consultas
+                // Índice compuesto para text_entity: (packId, subject)
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_text_entity_packId_subject ON text_entity(packId, subject)"
+                )
+                // Índice compuesto para question_entity: (packId, textId)
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_question_entity_packId_textId ON question_entity(packId, textId)"
+                )
+            },
+            Migration(6, 7) { database ->
+                // Agregar campo notificationsEnabled a user_profile_entity
+                database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN notificationsEnabled INTEGER NOT NULL DEFAULT 1")
             }
         )
     }

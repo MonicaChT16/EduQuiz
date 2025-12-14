@@ -10,6 +10,7 @@ import com.eduquiz.domain.profile.InventoryItem
 import com.eduquiz.domain.profile.ProfileRepository
 import com.eduquiz.domain.profile.SyncState
 import com.eduquiz.domain.profile.UserProfile
+import com.eduquiz.domain.profile.UserStats
 import com.google.firebase.firestore.FirebaseFirestore
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -103,14 +104,15 @@ class ProfileRepositoryImpl @Inject constructor(
                 uid = snapshot.id,
                 displayName = snapshot.getString("displayName") ?: "Usuario",
                 photoUrl = snapshot.getString("photoUrl"),
-                schoolId = snapshot.getString("schoolId") ?: "",
-                classroomId = snapshot.getString("classroomId") ?: "",
+                schoolId = "", // Legacy - no se usa
+                classroomId = "", // Legacy - no se usa
                 ugelCode = finalUgelCode, // Preservar el código UGEL desde Firestore
                 coins = (snapshot.getLong("coins") ?: 0L).toInt(),
                 xp = snapshot.getLong("xp") ?: snapshot.getLong("totalXp") ?: 0L,
                 selectedCosmeticId = snapshot.getString("selectedCosmeticId"),
                 updatedAtLocal = snapshot.getLong("updatedAtLocal") ?: System.currentTimeMillis(),
-                syncState = SyncState.SYNCED
+                syncState = SyncState.SYNCED,
+                notificationsEnabled = snapshot.getBoolean("notificationsEnabled") ?: true
             )
             
             // Guardar en Room
@@ -122,6 +124,15 @@ class ProfileRepositoryImpl @Inject constructor(
             android.util.Log.e("ProfileRepository", "Error fetching profile from Firestore", e)
             null
         }
+    }
+
+    override suspend fun updateNotificationsEnabled(
+        uid: String,
+        notificationsEnabled: Boolean,
+        updatedAtLocal: Long,
+        syncState: String
+    ) {
+        profileDao.updateNotificationsEnabled(uid, notificationsEnabled, updatedAtLocal, syncState)
     }
 
     override suspend fun saveDailyStreak(streak: DailyStreak) {
@@ -147,4 +158,26 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override suspend fun getAchievements(uid: String): List<Achievement> =
         achievementsDao.getAchievements(uid).map { it.toDomain() }
+    
+    override suspend fun getUserStats(uid: String): UserStats? {
+        return try {
+            val userDoc = firestore.collection("users").document(uid).get().await()
+            
+            if (!userDoc.exists()) {
+                android.util.Log.d("ProfileRepository", "User document not found in Firestore for $uid")
+                return null
+            }
+            
+            UserStats(
+                totalXp = userDoc.getLong("totalXp") ?: 0L,
+                totalScore = (userDoc.getLong("totalScore") ?: 0L).toInt(),
+                totalAttempts = (userDoc.getLong("totalAttempts") ?: 0L).toInt(),
+                totalCorrectAnswers = (userDoc.getLong("totalCorrectAnswers") ?: 0L).toInt(),
+                totalQuestions = (userDoc.getLong("totalQuestions") ?: 0L).toInt()
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("ProfileRepository", "Error getting user stats from Firestore", e)
+            null
+        }
+    }
 }

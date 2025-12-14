@@ -1,5 +1,9 @@
 package com.eduquiz.feature.ranking
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,11 +20,19 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -35,96 +47,129 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import com.eduquiz.core.resources.resolveCosmeticOverlayModel
+import com.eduquiz.data.repository.CosmeticCatalog
 import com.eduquiz.domain.ranking.LeaderboardEntry
 import com.eduquiz.feature.ranking.RankingTab
+import com.eduquiz.feature.ranking.SortBy
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun RankingFeature(
     uid: String,
     modifier: Modifier = Modifier,
     viewModel: RankingViewModel = hiltViewModel()
 ) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    
     LaunchedEffect(uid) {
         viewModel.start(uid)
     }
 
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    // Actualización automática cada 5 segundos (silenciosa)
+    LaunchedEffect(state.currentTab, state.schoolCode) {
+        while (true) {
+            delay(5000) // 5 segundos
+            if (!state.isLoading) {
+                viewModel.refreshSilent()
+            }
+        }
+    }
     val listState = rememberLazyListState()
 
     Surface(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Encabezado con perfil del usuario
-            UserHeader(
-                uid = uid,
-                userStats = state.userStats,
-                displayName = state.userDisplayName,
-                photoUrl = state.userPhotoUrl,
-                modifier = Modifier.fillMaxWidth()
-            )
-            
-            Divider()
-            
+        Box {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.fillMaxSize()
             ) {
-                // Pestañas
-                TabSelector(
-                    selectedTab = state.currentTab,
-                    onTabSelected = { tab ->
-                        viewModel.switchTab(tab)
-                    }
+                // Encabezado con perfil del usuario
+                UserHeader(
+                    uid = uid,
+                    userStats = state.userStats,
+                    displayName = state.userDisplayName,
+                    photoUrl = state.userPhotoUrl,
+                    selectedCosmeticId = state.userSelectedCosmeticId,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Divider()
+                
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Pestañas (ahora 3: Aula, Colegio, Nacional)
+                    TabSelector(
+                        selectedTab = state.currentTab,
+                        onTabSelected = { tab ->
+                            viewModel.switchTab(tab)
+                        }
+                    )
+
+                // Selector de ordenamiento
+                SortSelector(
+                    sortBy = state.sortBy,
+                    onSortSelected = { sort ->
+                        viewModel.setSortBy(sort)
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                // Campo de búsqueda (solo para pestaña Colegio)
-                // Mostrar siempre el código UGEL del usuario si existe, o permitir ingresar uno nuevo
-                if (state.currentTab == RankingTab.SCHOOL) {
-                    SchoolCodeSearch(
-                        schoolCode = state.userUgelCode.ifBlank { state.schoolCode },
-                        onSearch = { code ->
-                            viewModel.searchSchool(code)
-                        },
-                        isUserCode = state.userUgelCode.isNotBlank()
-                    )
-                }
+                    // Campo de búsqueda (solo para pestaña Colegio)
+                    if (state.currentTab == RankingTab.SCHOOL) {
+                        SchoolCodeSearch(
+                            schoolCode = state.userUgelCode.ifBlank { state.schoolCode },
+                            onSearch = { code ->
+                                viewModel.searchSchool(code)
+                            },
+                            isUserCode = state.userUgelCode.isNotBlank()
+                        )
+                    }
 
-                // Contenido
-                when {
-                    state.error != null -> ErrorState(message = state.error!!)
-                    state.isLoading -> LoadingState()
-                    else -> {
-                        Box(modifier = Modifier.weight(1f)) {
-                            RankingList(
-                                entries = state.entries,
-                                currentUid = state.currentUid,
-                                listState = listState,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            
-                            // Sticky row si el usuario no está visible
-                            val userEntry = state.userEntry
-                            val userStats = state.userStats
-                            if (!state.isUserVisible && userEntry != null && userStats != null) {
-                                StickyUserRow(
-                                    userEntry = userEntry,
-                                    userStats = userStats,
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .fillMaxWidth()
+                    // Contenido
+                    when {
+                        state.error != null -> ErrorState(message = state.error!!)
+                        state.isLoading -> LoadingState()
+                        else -> {
+                            Box(modifier = Modifier.weight(1f)) {
+                                RankingList(
+                                    entries = state.entries,
+                                    currentUid = state.currentUid,
+                                    listState = listState,
+                                    isLoadingMore = state.isLoadingMore,
+                                    onLoadMore = { viewModel.loadMore() },
+                                    modifier = Modifier.fillMaxSize()
                                 )
+                                
+                                // Sticky row si el usuario no está visible
+                                val userEntry = state.userEntry
+                                val userStats = state.userStats
+                                if (!state.isUserVisible && userEntry != null && userStats != null) {
+                                    StickyUserRow(
+                                        userEntry = userEntry,
+                                        userStats = userStats,
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                    )
+                                }
                             }
                         }
                     }
@@ -148,7 +193,7 @@ private fun TabSelector(
             onClick = { onTabSelected(RankingTab.SCHOOL) },
             shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
         ) {
-            Text("Mi Colegio/UGEL")
+            Text("Mi Colegio")
         }
         SegmentedButton(
             selected = selectedTab == RankingTab.NATIONAL,
@@ -161,6 +206,67 @@ private fun TabSelector(
 }
 
 @Composable
+private fun SortSelector(
+    sortBy: SortBy,
+    onSortSelected: (SortBy) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Ordenar por:",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        
+        Box {
+            Button(
+                onClick = { expanded = true }
+            ) {
+                Text(
+                    text = when (sortBy) {
+                        SortBy.SCORE -> "XP"
+                        SortBy.ACCURACY -> "Precisión"
+                        SortBy.EXAMS -> "Exámenes"
+                    }
+                )
+            }
+            
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("XP") },
+                    onClick = {
+                        onSortSelected(SortBy.SCORE)
+                        expanded = false
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Precisión") },
+                    onClick = {
+                        onSortSelected(SortBy.ACCURACY)
+                        expanded = false
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Exámenes") },
+                    onClick = {
+                        onSortSelected(SortBy.EXAMS)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun SchoolCodeSearch(
     schoolCode: String,
     onSearch: (String) -> Unit,
@@ -168,7 +274,6 @@ private fun SchoolCodeSearch(
 ) {
     var inputText by remember(schoolCode) { mutableStateOf(schoolCode) }
     
-    // Actualizar el texto cuando cambie el código guardado
     LaunchedEffect(schoolCode) {
         if (inputText != schoolCode) {
             inputText = schoolCode
@@ -179,7 +284,6 @@ private fun SchoolCodeSearch(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Mostrar mensaje si es el código del usuario
         if (isUserCode && schoolCode.isNotBlank()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -203,7 +307,6 @@ private fun SchoolCodeSearch(
             OutlinedTextField(
                 value = inputText,
                 onValueChange = { newValue ->
-                    // Solo permitir números y máximo 7 caracteres
                     if (newValue.all { it.isDigit() } && newValue.length <= 7) {
                         inputText = newValue
                     }
@@ -212,7 +315,7 @@ private fun SchoolCodeSearch(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 placeholder = { Text("Ej: 1234567") },
-                enabled = !isUserCode, // Si es código del usuario, permitir editar para cambiarlo
+                enabled = !isUserCode,
                 supportingText = {
                     when {
                         isUserCode && schoolCode.isNotBlank() -> Text(
@@ -281,6 +384,8 @@ private fun RankingList(
     entries: List<LeaderboardEntry>,
     currentUid: String?,
     listState: LazyListState,
+    isLoadingMore: Boolean,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (entries.isEmpty()) {
@@ -302,7 +407,7 @@ private fun RankingList(
             state = listState,
             modifier = modifier,
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(bottom = 80.dp) // Espacio para sticky row
+            contentPadding = PaddingValues(bottom = 100.dp)
         ) {
             itemsIndexed(entries, key = { _, entry -> entry.uid }) { index, entry ->
                 RankingRow(
@@ -310,6 +415,26 @@ private fun RankingList(
                     entry = entry,
                     isCurrentUser = entry.uid == currentUid
                 )
+            }
+            
+            // Botón de cargar más
+            if (entries.size >= 100) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isLoadingMore) {
+                            CircularProgressIndicator()
+                        } else {
+                            Button(onClick = onLoadMore) {
+                                Text("Cargar más")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -340,7 +465,6 @@ private fun RankingRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Posición y Avatar/Nombre
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -353,14 +477,11 @@ private fun RankingRow(
                     modifier = Modifier.padding(end = 8.dp)
                 )
                 
-                // Avatar
-                AsyncImage(
-                    model = entry.photoUrl,
-                    contentDescription = entry.displayName,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
+                ProfilePhotoWithFrame(
+                    photoUrl = entry.photoUrl,
+                    displayName = entry.displayName,
+                    selectedCosmeticId = entry.selectedCosmeticId,
+                    size = 48.dp
                 )
                 
                 Column(modifier = Modifier.weight(1f)) {
@@ -372,25 +493,21 @@ private fun RankingRow(
                 }
             }
             
-            // KPIs
             Column(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Puntaje Total (XP)
                 Text(
                     text = "${entry.totalScore} XP",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                // Precisión Promedio
                 Text(
                     text = "${String.format("%.1f", entry.accuracy)}%",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                // Exámenes Completados
                 Text(
                     text = "${entry.examsCompleted} exámenes",
                     style = MaterialTheme.typography.bodySmall,
@@ -407,6 +524,7 @@ private fun UserHeader(
     userStats: UserRankingStats?,
     displayName: String?,
     photoUrl: String?,
+    selectedCosmeticId: String?,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -424,14 +542,11 @@ private fun UserHeader(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar
-            AsyncImage(
-                model = photoUrl,
-                contentDescription = "Tu perfil",
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
+            ProfilePhotoWithFrame(
+                photoUrl = photoUrl,
+                displayName = displayName ?: "Usuario",
+                selectedCosmeticId = selectedCosmeticId,
+                size = 64.dp
             )
             
             Column(modifier = Modifier.weight(1f)) {
@@ -441,11 +556,41 @@ private fun UserHeader(
                     fontWeight = FontWeight.Bold
                 )
                 if (userStats != null && userStats.position > 0) {
-                    Text(
-                        text = "Puesto #${userStats.position}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Puesto #${userStats.position}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        // Indicador de cambio de posición
+                        userStats.previousPosition?.let { previous ->
+                            if (previous > 0 && previous != userStats.position) {
+                                AnimatedVisibility(
+                                    visible = true,
+                                    enter = fadeIn(),
+                                    exit = fadeOut()
+                                ) {
+                                    Icon(
+                                        imageVector = if (userStats.position < previous) {
+                                            Icons.Default.KeyboardArrowUp
+                                        } else {
+                                            Icons.Default.KeyboardArrowDown
+                                        },
+                                        contentDescription = if (userStats.position < previous) "Subió" else "Bajó",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = if (userStats.position < previous) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.error
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 } else if (userStats != null) {
                     Text(
                         text = "No clasificado",
@@ -455,7 +600,6 @@ private fun UserHeader(
                 }
             }
             
-            // KPIs del usuario
             if (userStats != null) {
                 Column(
                     horizontalAlignment = Alignment.End,
@@ -507,19 +651,41 @@ private fun StickyUserRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
-                    text = "#${userStats.position}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "#${userStats.position}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    // Indicador de cambio
+                    userStats.previousPosition?.let { previous ->
+                        if (previous > 0 && previous != userStats.position) {
+                            Icon(
+                                imageVector = if (userStats.position < previous) {
+                                    Icons.Default.KeyboardArrowUp
+                                } else {
+                                    Icons.Default.KeyboardArrowDown
+                                },
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (userStats.position < previous) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.error
+                                }
+                            )
+                        }
+                    }
+                }
                 
-                AsyncImage(
-                    model = userEntry.photoUrl,
-                    contentDescription = "Tu perfil",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
+                ProfilePhotoWithFrame(
+                    photoUrl = userEntry.photoUrl,
+                    displayName = userEntry.displayName,
+                    selectedCosmeticId = userEntry.selectedCosmeticId,
+                    size = 40.dp
                 )
                 
                 Text(
@@ -545,6 +711,66 @@ private fun StickyUserRow(
                 Text(
                     text = "${userStats.examsCompleted} exámenes",
                     style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfilePhotoWithFrame(
+    photoUrl: String?,
+    displayName: String,
+    selectedCosmeticId: String?,
+    size: Dp,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val gifImageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components {
+                if (android.os.Build.VERSION.SDK_INT >= 28) {
+                    add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+            }
+            .build()
+    }
+
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.Center
+    ) {
+        AsyncImage(
+            model = photoUrl,
+            contentDescription = displayName,
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
+        
+        if (selectedCosmeticId == "basic_frame") {
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .border(
+                        width = 3.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = CircleShape
+                    )
+            )
+        } else if (selectedCosmeticId != null) {
+            val cosmetic = CosmeticCatalog.COSMETICS.find { it.cosmeticId == selectedCosmeticId }
+            cosmetic?.overlayImageUrl?.let { overlayUrl ->
+                val overlayModel = resolveCosmeticOverlayModel(context, overlayUrl)
+                AsyncImage(
+                    model = overlayModel,
+                    imageLoader = gifImageLoader,
+                    contentDescription = "Marco de perfil",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
                 )
             }
         }
