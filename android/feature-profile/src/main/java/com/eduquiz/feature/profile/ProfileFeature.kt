@@ -358,7 +358,7 @@ private fun UserStatsRow(
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         StatItem(
-            value = "$xp Pt",
+            value = "$xp Xp",
             label = "Puntos de\nExperiencia"
         )
         

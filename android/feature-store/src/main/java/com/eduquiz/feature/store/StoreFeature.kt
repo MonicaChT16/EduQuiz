@@ -24,12 +24,15 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -321,7 +324,7 @@ private fun CosmeticCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    CoinDot()
+                    CoinIcon()
                     Spacer(Modifier.width(6.dp))
                     if (showDiscountBadge) {
                         Text(
@@ -402,7 +405,7 @@ private fun StoreActionButton(
                 modifier = modifier
             ) {
                 Text(
-                    text = if (canAfford) "Comprar" else if (compact) "Sin $" else "Insuficientes",
+                    text = if (canAfford) "Comprar" else if (compact) "Insuf." else "Insuficientes",
                     style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium,
                     maxLines = 1
                 )
@@ -421,7 +424,7 @@ private fun CoinBalanceChip(coins: Int) {
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CoinDot()
+            CoinIcon()
             Spacer(Modifier.width(6.dp))
             Text(
                 text = coins.toString(),
@@ -531,12 +534,12 @@ private fun DiscountBadge(modifier: Modifier = Modifier, text: String) {
 }
 
 @Composable
-private fun CoinDot() {
-    Box(
-        modifier = Modifier
-            .size(18.dp)
-            .clip(CircleShape)
-            .background(Color(0xFFFFB02E))
+private fun CoinIcon() {
+    Icon(
+        imageVector = Icons.Default.MonetizationOn,
+        contentDescription = "Monedas",
+        modifier = Modifier.size(18.dp),
+        tint = Color(0xFFFFD700) // Color dorado
     )
 }
 
