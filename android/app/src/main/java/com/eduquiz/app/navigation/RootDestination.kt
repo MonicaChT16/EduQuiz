@@ -7,7 +7,7 @@ enum class RootDestination(val route: String, val title: String) {
     Exam("exam", "Exámenes"),
     Profile("profile", "Perfil"),
     Store("store", "Tienda"),
-    Ranking("ranking", "Tabla de clasificación"),
+    Ranking("ranking", "Clasificación"),
     Settings("settings", "Ajustes"),
     Notifications("notifications", "Notificaciones"),
     About("about", "Acerca de EduQuiz");

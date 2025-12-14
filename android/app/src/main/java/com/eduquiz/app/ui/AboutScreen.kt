@@ -118,23 +118,23 @@ fun AboutScreen(
 
             // Creador 1
             CreatorCard(
-                name = "Desarrollador Principal",
-                role = "Arquitectura y Backend",
+                name = "Mónica Chilón",
+                role = "Líder y Backend",
                 description = "Responsable de la estructura general de la aplicación y el desarrollo de servicios."
             )
 
             // Creador 2
             CreatorCard(
-                name = "Diseñador UI/UX",
-                role = "Interfaz de Usuario",
+                name = "Jefferson Asencios ",
+                role = "UI/UX - rontend",
                 description = "Diseño visual y experiencia de usuario de la aplicación móvil."
             )
 
             // Creador 3
             CreatorCard(
-                name = "Desarrollador Frontend",
-                role = "Interfaz Móvil",
-                description = "Desarrollo de la interfaz de usuario en Jetpack Compose."
+                name = "Geraldine Acuña",
+                role = "Documentadora",
+                description = "Documenta los casos de uso"
             )
 
             Spacer(modifier = Modifier.height(24.dp))

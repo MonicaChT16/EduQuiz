@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
 import android.os.Build
 import androidx.compose.ui.graphics.Color
@@ -129,6 +130,7 @@ fun HomeScreen(
                 authState = authState,
                 notificationsEnabled = notificationsEnabled,
                 onNotificationClick = { onNavigate(RootDestination.Notifications) },
+                profileViewModel = homeProfileViewModel,
                 modifier = Modifier
                     .fillMaxWidth()
             )
@@ -162,7 +164,7 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(220.dp),
+                    .height(280.dp),
                 contentAlignment = Alignment.Center
             ) {
                 // GIF del robot
@@ -172,7 +174,7 @@ fun HomeScreen(
                     imageLoader = imageLoader, // Usar el ImageLoader personalizado
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(190.dp)
+                        .height(250.dp)
                         .clip(RoundedCornerShape(24.dp))
                 )
 
@@ -429,10 +431,12 @@ fun HomeHeader(
             .build()
     }
 
+    val selectedCosmeticId = profile?.selectedCosmeticId?.trim()?.takeIf { it.isNotEmpty() }
+
     var cosmeticOverlayUrl: String? by remember { mutableStateOf(null) }
-    LaunchedEffect(profile?.selectedCosmeticId) {
-        profile?.selectedCosmeticId?.let { cosmeticId ->
-            cosmeticOverlayUrl = profileViewModel.getCosmeticOverlayUrl(cosmeticId)
+    LaunchedEffect(selectedCosmeticId) {
+        selectedCosmeticId?.let { cosmeticId ->
+            cosmeticOverlayUrl = profileViewModel.getCosmeticOverlayUrl(cosmeticId.trim())
         } ?: run {
             cosmeticOverlayUrl = null
         }
@@ -449,61 +453,64 @@ fun HomeHeader(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
+            Box(
                 modifier = Modifier.size(48.dp),
-                shape = CircleShape,
-                color = Color.White,
-                shadowElevation = 4.dp
+                contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .shadow(elevation = 4.dp, shape = CircleShape, clip = false)
+                        .background(Color.White, CircleShape)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
                         .background(Color(0xFFE0E0E0)),
                     contentAlignment = Alignment.Center
                 ) {
-                    val photoUrl = profile?.photoUrl
-                    val selectedCosmeticId = profile?.selectedCosmeticId
+                    val authPhotoUrl = (authState as? AuthState.Authenticated)?.user?.photoUrl
+                    val photoUrl = profile?.photoUrl ?: authPhotoUrl
                     if (photoUrl != null) {
-                        // Mostrar la imagen del perfil si existe
                         AsyncImage(
                             model = photoUrl,
                             contentDescription = "Foto de perfil del usuario",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape),
+                            modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
                     } else {
-                        // Mostrar icono por defecto si no hay foto
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Perfil",
-                            modifier = Modifier.size(24.dp),
-                            tint = Color.Gray
+                        val fallbackName = (authState as? AuthState.Authenticated)?.user?.displayName ?: "Usuario"
+                        Text(
+                            text = fallbackName.take(1).uppercase(),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
                         )
                     }
+                }
 
-                    if (selectedCosmeticId == "basic_frame") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .border(
-                                    width = 3.dp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    shape = CircleShape
-                                )
-                        )
-                    } else if (selectedCosmeticId != null) {
-                        val overlayModel = resolveCosmeticOverlayModel(context, cosmeticOverlayUrl)
-                        if (overlayModel != null) {
-                            AsyncImage(
-                                model = overlayModel,
-                                imageLoader = gifImageLoader,
-                                contentDescription = "Marco de perfil",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Fit
+                if (selectedCosmeticId == "basic_frame") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .border(
+                                width = 4.dp,
+                                color = Color(0xFF3B82F6),
+                                shape = CircleShape
                             )
-                        }
+                    )
+                } else if (selectedCosmeticId != null) {
+                    val overlayModel = resolveCosmeticOverlayModel(context, cosmeticOverlayUrl)
+                    if (overlayModel != null) {
+                        AsyncImage(
+                            model = overlayModel,
+                            imageLoader = gifImageLoader,
+                            contentDescription = "Marco de perfil",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
                     }
                 }
             }
@@ -549,7 +556,7 @@ fun HomeHeader(
                     tint = Color(0xFFFFD700)
                 )
                 Text(
-                    text = "${profile?.coins ?: 0} XP",
+                    text = "${profile?.xp ?: 0L} XP",
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
