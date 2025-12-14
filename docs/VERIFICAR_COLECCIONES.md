@@ -82,3 +82,4 @@ Si ejecutas el script de nuevo, se crearán las colecciones correctas y el probl
 
 
 
+

@@ -727,45 +727,186 @@ class ExamViewModel @Inject constructor(
         timerJob?.cancel()
 
         viewModelScope.launch {
-            _state.update { it.copy(isBusy = true) }
-            
-            // Usar el nuevo método finishAttempt que calcula scoreRaw automáticamente
-            examRepository.finishAttempt(
-                attemptId = currentAttempt.attemptId,
-                finishedAtLocal = timeProvider.currentTimeMillis(),
-                status = status
-            )
-            
-            // Calcular y otorgar EduCoins
-            if (status != ExamStatus.CANCELLED_CHEAT) {
-                calculateAndAwardCoins(uid, currentAttempt.attemptId)
+            try {
+                _state.update { it.copy(isBusy = true) }
                 
-                // Evaluar logros relacionados con completar examen
-                achievementEngine.evaluateAndUnlock(
-                    uid = uid,
-                    event = AchievementEvent.ExamCompleted
+                // Primero, asegurarse de que todas las respuestas del estado local estén guardadas
+                // Esto es importante porque algunas respuestas podrían estar solo en el estado local
+                android.util.Log.d("ExamViewModel", "finishExam: Ensuring all local answers are saved")
+                val localAnswers = _state.value.answers
+                android.util.Log.d("ExamViewModel", "finishExam: Found ${localAnswers.size} answers in local state")
+                
+                // Verificar qué respuestas ya están guardadas en la BD
+                val savedAnswers = examRepository.getAnswersForAttempt(currentAttempt.attemptId)
+                val savedQuestionIds = savedAnswers.map { it.questionId }.toSet()
+                android.util.Log.d("ExamViewModel", "finishExam: Found ${savedAnswers.size} answers already in database")
+                
+                // Guardar solo las respuestas que no están ya guardadas
+                for ((questionId, optionId) in localAnswers) {
+                    if (!savedQuestionIds.contains(questionId)) {
+                        try {
+                            // Si no está guardada, guardarla ahora con tiempo estimado
+                            examRepository.submitAnswer(
+                                attemptId = currentAttempt.attemptId,
+                                questionId = questionId,
+                                optionId = optionId,
+                                timeSpentMs = 5000L // Tiempo estimado si no lo tenemos
+                            )
+                            android.util.Log.d("ExamViewModel", "finishExam: Saved missing answer for question $questionId")
+                        } catch (e: Exception) {
+                            android.util.Log.e("ExamViewModel", "finishExam: Error saving answer for $questionId", e)
+                        }
+                    } else {
+                        android.util.Log.d("ExamViewModel", "finishExam: Answer for question $questionId already saved")
+                    }
+                }
+                
+                // Pequeño delay para asegurar que todas las escrituras a la BD terminen
+                kotlinx.coroutines.delay(200)
+                
+                // Ahora sí, finalizar el intento (esto recalculará el score desde las respuestas guardadas)
+                android.util.Log.d("ExamViewModel", "finishExam: Calling finishAttempt")
+                examRepository.finishAttempt(
+                    attemptId = currentAttempt.attemptId,
+                    finishedAtLocal = timeProvider.currentTimeMillis(),
+                    status = status
                 )
-            }
-            
-            // Sincronizar perfil inmediatamente para actualizar métricas de ranking
-            // Esto recalcula las métricas desde los intentos y las sincroniza a Firestore
-            android.util.Log.d("ExamViewModel", "Syncing user profile immediately after exam finish to update ranking metrics")
-            val syncSuccess = syncRepository.syncUserProfileNow(uid)
-            android.util.Log.d("ExamViewModel", "Profile sync result: $syncSuccess")
-            
-            // También encolar sincronización de intentos por si acaso
-            syncRepository.enqueueSyncNow()
-            
-            // Cargar resultado desde Room
-            loadResult(currentAttempt.attemptId)
-            
-            _state.update {
-                it.copy(
-                    stage = ExamStage.Finished,
-                    finishedStatus = status,
-                    remainingMs = 0L,
-                    isBusy = false
-                )
+                android.util.Log.d("ExamViewModel", "finishExam: finishAttempt completed")
+                
+                // Esperar un poco más para que finishAttempt termine de escribir el score actualizado
+                kotlinx.coroutines.delay(300)
+                
+                // Verificar respuestas una vez más antes de otorgar coins
+                val finalAnswers = examRepository.getAnswersForAttempt(currentAttempt.attemptId)
+                val correctCount = finalAnswers.count { it.isCorrect }
+                android.util.Log.d("ExamViewModel", "finishExam: Final check - Found ${finalAnswers.size} answers, $correctCount correct")
+                finalAnswers.forEach { answer ->
+                    android.util.Log.d("ExamViewModel", "finishExam: Final answer - questionId=${answer.questionId}, selected=${answer.selectedOptionId}, isCorrect=${answer.isCorrect}")
+                }
+                
+                // Calcular y otorgar EduCoins
+                if (status != ExamStatus.CANCELLED_CHEAT) {
+                    try {
+                        calculateAndAwardCoins(uid, currentAttempt.attemptId)
+                        
+                        // Evaluar logros relacionados con completar examen
+                        achievementEngine.evaluateAndUnlock(
+                            uid = uid,
+                            event = AchievementEvent.ExamCompleted
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.e("ExamViewModel", "finishExam: Error calculating/awarding coins", e)
+                    }
+                }
+                
+                // Sincronizar perfil inmediatamente para actualizar métricas de ranking
+                // Esto recalcula las métricas desde los intentos y las sincroniza a Firestore
+                try {
+                    android.util.Log.d("ExamViewModel", "Syncing user profile immediately after exam finish to update ranking metrics")
+                    val syncSuccess = syncRepository.syncUserProfileNow(uid)
+                    android.util.Log.d("ExamViewModel", "Profile sync result: $syncSuccess")
+                    
+                    // También encolar sincronización de intentos por si acaso
+                    syncRepository.enqueueSyncNow()
+                } catch (e: Exception) {
+                    android.util.Log.e("ExamViewModel", "finishExam: Error syncing profile", e)
+                }
+                
+                // Cargar resultado desde Room - usar las respuestas que ya tenemos verificadas
+                android.util.Log.d("ExamViewModel", "finishExam: Loading result for attemptId=${currentAttempt.attemptId}")
+                android.util.Log.d("ExamViewModel", "finishExam: Using finalAnswers with ${finalAnswers.size} answers, $correctCount correct")
+                
+                // Usar directamente las respuestas que ya verificamos (estas son las correctas que dan coins)
+                val finalAttempt = examRepository.getAttemptById(currentAttempt.attemptId)
+                if (finalAttempt != null) {
+                    android.util.Log.d("ExamViewModel", "finishExam: Creating result directly from verified answers")
+                    _resultState.value = ExamResult(
+                        attemptId = currentAttempt.attemptId,
+                        status = finalAttempt.status,
+                        scoreRaw = correctCount, // Usar el count que ya calculamos desde finalAnswers
+                        answeredCount = finalAnswers.size,
+                        finishedAtLocal = finalAttempt.finishedAtLocal,
+                        totalQuestions = _state.value.totalQuestions
+                    )
+                    android.util.Log.d("ExamViewModel", "finishExam: Result state set directly with scoreRaw=$correctCount, answeredCount=${finalAnswers.size}")
+                } else {
+                    // Si no pudimos obtener el intento, usar las respuestas que ya tenemos verificadas
+                    android.util.Log.w("ExamViewModel", "finishExam: Could not get attempt, using finalAnswers anyway")
+                    _resultState.value = ExamResult(
+                        attemptId = currentAttempt.attemptId,
+                        status = status,
+                        scoreRaw = correctCount, // Usar las mismas respuestas que dieron coins/XP
+                        answeredCount = finalAnswers.size,
+                        finishedAtLocal = timeProvider.currentTimeMillis(),
+                        totalQuestions = _state.value.totalQuestions
+                    )
+                }
+                
+                // Cargar datos de revisión en segundo plano (no bloquea)
+                launch {
+                    try {
+                        loadReviewData(currentAttempt.attemptId, currentAttempt.packId, finalAnswers)
+                    } catch (e: Exception) {
+                        android.util.Log.e("ExamViewModel", "finishExam: Error loading review data", e)
+                    }
+                }
+                
+                // Actualizar estado a Finished
+                _state.update {
+                    it.copy(
+                        stage = ExamStage.Finished,
+                        finishedStatus = status,
+                        remainingMs = 0L,
+                        isBusy = false
+                    )
+                }
+                android.util.Log.d("ExamViewModel", "finishExam: State updated to Finished successfully")
+                
+            } catch (e: Exception) {
+                android.util.Log.e("ExamViewModel", "finishExam: Fatal error in finishExam", e)
+                e.printStackTrace()
+                // Asegurar que al menos el estado se actualice para que la UI pueda mostrar algo
+                try {
+                    // Intentar crear resultado con lo que tengamos
+                    val fallbackAnswers = try {
+                        examRepository.getAnswersForAttempt(currentAttempt.attemptId)
+                    } catch (ex: Exception) {
+                        emptyList()
+                    }
+                    val fallbackScore = fallbackAnswers.count { it.isCorrect }
+                    
+                    _resultState.value = ExamResult(
+                        attemptId = currentAttempt.attemptId,
+                        status = status,
+                        scoreRaw = fallbackScore,
+                        answeredCount = fallbackAnswers.size,
+                        finishedAtLocal = timeProvider.currentTimeMillis(),
+                        totalQuestions = _state.value.totalQuestions
+                    )
+                    
+                    _state.update {
+                        it.copy(
+                            stage = ExamStage.Finished,
+                            finishedStatus = status,
+                            remainingMs = 0L,
+                            isBusy = false,
+                            errorMessage = "Error al finalizar examen: ${e.message}"
+                        )
+                    }
+                } catch (e2: Exception) {
+                    android.util.Log.e("ExamViewModel", "finishExam: Could not update state even in error handler", e2)
+                    // Último intento: al menos cambiar el stage
+                    try {
+                        _state.value = _state.value.copy(
+                            stage = ExamStage.Finished,
+                            finishedStatus = status,
+                            remainingMs = 0L,
+                            isBusy = false
+                        )
+                    } catch (e3: Exception) {
+                        android.util.Log.e("ExamViewModel", "finishExam: Complete failure, app may crash", e3)
+                    }
+                }
             }
         }
     }
@@ -807,22 +948,90 @@ class ExamViewModel @Inject constructor(
 
     fun loadResult(attemptId: String) {
         viewModelScope.launch {
-            val finishedAttempt = examRepository.getAttempts(userId ?: "")
-                .find { it.attemptId == attemptId }
-            
-            if (finishedAttempt != null) {
-                val answers = examRepository.getAnswersForAttempt(attemptId)
+            try {
+                android.util.Log.d("ExamViewModel", "loadResult: Attempting to load result for attemptId=$attemptId")
+                val uid = userId ?: ""
+                if (uid.isEmpty()) {
+                    android.util.Log.e("ExamViewModel", "loadResult: userId is empty, cannot load result")
+                    _resultState.value = ExamResult(
+                        attemptId = attemptId,
+                        status = "ERROR",
+                        scoreRaw = 0,
+                        answeredCount = 0,
+                        finishedAtLocal = null,
+                        totalQuestions = 0
+                    )
+                    return@launch
+                }
+                
+                // Intentar obtener directamente por ID primero (más eficiente)
+                android.util.Log.d("ExamViewModel", "loadResult: Getting attempt directly by ID")
+                var finishedAttempt = examRepository.getAttemptById(attemptId)
+                var allAttempts: List<ExamAttempt>? = null
+                
+                // Si no se encuentra por ID, buscar en la lista (fallback)
+                if (finishedAttempt == null) {
+                    android.util.Log.w("ExamViewModel", "loadResult: Attempt not found by ID, searching in all attempts")
+                    allAttempts = examRepository.getAttempts(uid)
+                    android.util.Log.d("ExamViewModel", "loadResult: Found ${allAttempts.size} total attempts")
+                    finishedAttempt = allAttempts.find { it.attemptId == attemptId }
+                }
+                
+                if (finishedAttempt != null) {
+                    android.util.Log.d("ExamViewModel", "loadResult: Found attempt: status=${finishedAttempt.status}, scoreRaw=${finishedAttempt.scoreRaw}")
+                    val answers = examRepository.getAnswersForAttempt(attemptId)
+                    android.util.Log.d("ExamViewModel", "loadResult: Found ${answers.size} answers for attempt")
+                    
+                    // SIEMPRE calcular el score desde las respuestas actuales, no usar el de la BD
+                    val calculatedScore = answers.count { it.isCorrect }
+                    val calculatedAnsweredCount = answers.size
+                    
+                    android.util.Log.d("ExamViewModel", "loadResult: Calculated score: $calculatedScore from ${answers.size} answers")
+                    android.util.Log.d("ExamViewModel", "loadResult: DB scoreRaw: ${finishedAttempt.scoreRaw}, Using calculated: $calculatedScore")
+                    
+                    // Log detallado de las respuestas para debugging
+                    answers.forEach { answer ->
+                        android.util.Log.d("ExamViewModel", "loadResult: Answer - questionId=${answer.questionId}, selected=${answer.selectedOptionId}, isCorrect=${answer.isCorrect}")
+                    }
+                    
+                    _resultState.value = ExamResult(
+                        attemptId = attemptId,
+                        status = finishedAttempt.status,
+                        scoreRaw = calculatedScore, // Usar siempre el calculado
+                        answeredCount = calculatedAnsweredCount,
+                        finishedAtLocal = finishedAttempt.finishedAtLocal,
+                        totalQuestions = _state.value.totalQuestions
+                    )
+                    
+                    android.util.Log.d("ExamViewModel", "loadResult: Result state updated successfully")
+                    
+                    // Cargar datos de revisión
+                    loadReviewData(attemptId, finishedAttempt.packId, answers)
+                } else {
+                    android.util.Log.e("ExamViewModel", "loadResult: Attempt $attemptId not found in database")
+                    if (allAttempts != null) {
+                        android.util.Log.e("ExamViewModel", "loadResult: Available attemptIds: ${allAttempts.map { it.attemptId }}")
+                    }
+                    // Crear un resultado de error en lugar de dejar null
+                    _resultState.value = ExamResult(
+                        attemptId = attemptId,
+                        status = "NOT_FOUND",
+                        scoreRaw = 0,
+                        answeredCount = 0,
+                        finishedAtLocal = null,
+                        totalQuestions = _state.value.totalQuestions
+                    )
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ExamViewModel", "loadResult: Exception loading result", e)
                 _resultState.value = ExamResult(
                     attemptId = attemptId,
-                    status = finishedAttempt.status,
-                    scoreRaw = finishedAttempt.scoreRaw,
-                    answeredCount = answers.size,
-                    finishedAtLocal = finishedAttempt.finishedAtLocal,
+                    status = "ERROR",
+                    scoreRaw = 0,
+                    answeredCount = 0,
+                    finishedAtLocal = null,
                     totalQuestions = _state.value.totalQuestions
                 )
-                
-                // Cargar datos de revisión
-                loadReviewData(attemptId, finishedAttempt.packId, answers)
             }
         }
     }

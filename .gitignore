@@ -23,3 +23,4 @@ web-admin/.next/
 web-admin/.env.local
 .firebase/
 .env
+serviceAccountKey.json
