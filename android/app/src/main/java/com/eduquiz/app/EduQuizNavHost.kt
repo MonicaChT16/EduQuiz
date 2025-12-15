@@ -110,7 +110,7 @@ private fun MainNavHost(authUser: AuthUser, modifier: Modifier = Modifier, onLog
         BottomNavItem(RootDestination.Home.route, "Inicio", Icons.Default.Home),
         BottomNavItem(RootDestination.Profile.route, "Perfil", Icons.Default.Person),
         BottomNavItem(RootDestination.Store.route, "Tienda", Icons.Default.ShoppingCart),
-        BottomNavItem(RootDestination.Ranking.route, "Tabla de\nclasificacion", Icons.Default.Star),
+        BottomNavItem(RootDestination.Ranking.route, "clasificación", Icons.Default.Star),
         BottomNavItem(RootDestination.Settings.route, "Ajustes", Icons.Default.Settings)
     )
 

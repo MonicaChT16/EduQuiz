@@ -18,14 +18,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,9 +30,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -57,7 +50,6 @@ fun SettingsScreen(
     homeProfileViewModel: HomeProfileViewModel = hiltViewModel()
 ) {
     val notificationEnabled by homeProfileViewModel.notificationsEnabled.collectAsStateWithLifecycle()
-    var selectedLanguage by remember { mutableStateOf("Español") }
 
     Box(
         modifier = Modifier
@@ -132,19 +124,6 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { /* TODO: Navigate to music settings */ }
-                )
-
-                // Idioma
-                ModernSettingsItem(
-                    icon = Icons.Default.Language,
-                    title = "Idioma",
-                    iconColor = Color(0xFF10B981),
-                    content = {
-                        ModernLanguageSelector(
-                            selectedLanguage = selectedLanguage,
-                            onLanguageSelected = { selectedLanguage = it }
-                        )
-                    }
                 )
 
                 // Acerca de Quizzie Bot
@@ -234,70 +213,5 @@ private fun ModernSettingsItem(
         }
         
         content?.invoke()
-    }
-}
-
-@Composable
-private fun ModernLanguageSelector(
-    selectedLanguage: String,
-    onLanguageSelected: (String) -> Unit
-) {
-    var isDropdownExpanded by remember { mutableStateOf(false) }
-    val languages = listOf("Español", "English", "Français", "Deutsch")
-
-    Box {
-        Surface(
-            modifier = Modifier
-                .clickable { isDropdownExpanded = !isDropdownExpanded }
-                .background(
-                    color = Color.White.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(20.dp)
-                )
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            color = Color.Transparent
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = selectedLanguage,
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Icon(
-                    imageVector = Icons.Default.ExpandMore,
-                    contentDescription = "Cambiar idioma",
-                    tint = Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-
-        DropdownMenu(
-            expanded = isDropdownExpanded,
-            onDismissRequest = { isDropdownExpanded = false },
-            modifier = Modifier.background(
-                Color.White,
-                shape = RoundedCornerShape(12.dp)
-            )
-        ) {
-            languages.forEach { language ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = language,
-                            color = if (language == selectedLanguage) Color(0xFF3B82F6) else Color.Black,
-                            fontWeight = if (language == selectedLanguage) FontWeight.Bold else FontWeight.Normal
-                        )
-                    },
-                    onClick = {
-                        onLanguageSelected(language)
-                        isDropdownExpanded = false
-                    }
-                )
-            }
-        }
     }
 }
