@@ -81,15 +81,8 @@ fun RankingFeature(
         viewModel.start(uid)
     }
 
-    // Actualización automática cada 5 segundos (silenciosa)
-    LaunchedEffect(state.currentTab, state.schoolCode) {
-        while (true) {
-            delay(5000) // 5 segundos
-            if (!state.isLoading) {
-                viewModel.refreshSilent()
-            }
-        }
-    }
+    // Ya no actualizamos automáticamente - el ranking es estático
+    // El usuario puede actualizar manualmente con el botón
     val listState = rememberLazyListState()
 
     Surface(modifier = modifier.fillMaxSize()) {
@@ -123,14 +116,35 @@ fun RankingFeature(
                         }
                     )
 
-                // Selector de ordenamiento
-                SortSelector(
-                    sortBy = state.sortBy,
-                    onSortSelected = { sort ->
-                        viewModel.setSortBy(sort)
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Fila con selector de ordenamiento y botón de actualizar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SortSelector(
+                        sortBy = state.sortBy,
+                        onSortSelected = { sort ->
+                            viewModel.setSortBy(sort)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    Spacer(modifier = Modifier.size(8.dp))
+                    
+                    Button(
+                        onClick = { viewModel.refresh() },
+                        enabled = !state.isRefreshing && !state.isLoading
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Actualizar",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.size(4.dp))
+                        Text(if (state.isRefreshing) "Actualizando..." else "Actualizar")
+                    }
+                }
 
                     // Campo de búsqueda (solo para pestaña Colegio)
                     if (state.currentTab == RankingTab.SCHOOL) {

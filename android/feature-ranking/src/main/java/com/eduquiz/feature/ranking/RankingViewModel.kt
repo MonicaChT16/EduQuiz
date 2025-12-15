@@ -127,52 +127,44 @@ class RankingViewModel @Inject constructor(
     }
     
     private suspend fun updateUserStatsFromProfile(uid: String, profile: UserProfile?) {
-        val currentStats = _state.value.userStats
+        // IMPORTANTE: Usar las métricas del perfil de Room, no calcularlas
+        // Las métricas ya están calculadas y guardadas en Room
         val totalScore = profile?.xp?.toInt() ?: 0
         
-        // Solo actualizar si el XP cambió
-        if (currentStats?.totalScore != totalScore) {
-            updateUserStats(
-                totalScore = totalScore,
-                displayName = profile?.displayName,
-                photoUrl = profile?.photoUrl,
-                selectedCosmeticId = profile?.selectedCosmeticId
-            )
-        } else {
-            // Actualizar solo displayName, photoUrl y selectedCosmeticId si el XP es el mismo
-            _state.update {
-                it.copy(
-                    userDisplayName = profile?.displayName ?: it.userDisplayName,
-                    userPhotoUrl = profile?.photoUrl ?: it.userPhotoUrl,
-                    userSelectedCosmeticId = profile?.selectedCosmeticId
-                )
-            }
-        }
+        // Obtener las métricas desde getUserStats (que ahora lee de Room)
+        val userStats = profileRepository.getUserStats(uid)
+        
+        updateUserStats(
+            totalScore = totalScore,
+            accuracy = userStats?.let { 
+                if (it.totalQuestions > 0) {
+                    (it.totalCorrectAnswers.toFloat() / it.totalQuestions.toFloat()) * 100f
+                } else {
+                    0f
+                }
+            } ?: 0f,
+            examsCompleted = userStats?.totalAttempts ?: 0,
+            displayName = profile?.displayName,
+            photoUrl = profile?.photoUrl,
+            selectedCosmeticId = profile?.selectedCosmeticId
+        )
     }
     
     private suspend fun updateUserStatsFromAttempts(uid: String, attempts: List<ExamAttempt>) {
-        val completedAttempts = attempts.filter { 
-            it.status == ExamStatus.COMPLETED || it.status == ExamStatus.AUTO_SUBMIT 
-        }
-        val examsCompleted = completedAttempts.size
+        // IMPORTANTE: Ya no calcular desde intentos, usar las métricas de Room
+        // Las métricas se calculan y guardan en Room cuando se sincroniza
+        val profile = profileRepository.observeProfile(uid).firstOrNull()
+        val userStats = profileRepository.getUserStats(uid)
         
-        var totalCorrect = 0
-        var totalAnswered = 0
-        
-        completedAttempts.forEach { attempt ->
-            val answers = examRepository.getAnswersForAttempt(attempt.attemptId)
-            totalAnswered += answers.size
-            totalCorrect += answers.count { it.isCorrect }
-        }
-        
-        val accuracy = if (totalAnswered > 0) {
-            (totalCorrect.toFloat() / totalAnswered.toFloat()) * 100f
-        } else {
-            0f
-        }
-        
-        val currentStats = _state.value.userStats
-        val totalScore = currentStats?.totalScore ?: (profileRepository.observeProfile(uid).firstOrNull()?.xp?.toInt() ?: 0)
+        val totalScore = profile?.xp?.toInt() ?: 0
+        val accuracy = userStats?.let { 
+            if (it.totalQuestions > 0) {
+                (it.totalCorrectAnswers.toFloat() / it.totalQuestions.toFloat()) * 100f
+            } else {
+                0f
+            }
+        } ?: 0f
+        val examsCompleted = userStats?.totalAttempts ?: 0
         
         updateUserStats(
             totalScore = totalScore,
@@ -502,10 +494,8 @@ class RankingViewModel @Inject constructor(
         currentJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             try {
-                rankingRepository.observeSchoolLeaderboard(schoolCode)
-                    .collect { result ->
-                        handleRankingResult(result)
-                    }
+                val result = rankingRepository.loadSchoolLeaderboard(schoolCode)
+                handleRankingResult(result)
             } catch (e: Exception) {
                 _state.update {
                     it.copy(
@@ -521,10 +511,8 @@ class RankingViewModel @Inject constructor(
         currentJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             try {
-                rankingRepository.observeNationalLeaderboard()
-                    .collect { result ->
-                        handleRankingResult(result)
-                    }
+                val result = rankingRepository.loadNationalLeaderboard()
+                handleRankingResult(result)
             } catch (e: Exception) {
                 _state.update {
                     it.copy(

@@ -260,6 +260,39 @@ class RankingRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun loadSchoolLeaderboard(schoolCode: String): RankingResult<List<LeaderboardEntry>> {
+        return try {
+            val usersRef = firestore
+                .collection("users")
+                .whereEqualTo("schoolCode", schoolCode)
+                .orderBy("totalScore", Query.Direction.DESCENDING)
+                .limit(100)
+
+            val snapshot = usersRef.get().await()
+            val entries = snapshot.documents.mapNotNull { it.toLeaderboardEntry() }
+            
+            RankingResult.Success(entries)
+        } catch (e: Exception) {
+            RankingResult.Error(mapFirestoreError(e))
+        }
+    }
+
+    override suspend fun loadNationalLeaderboard(): RankingResult<List<LeaderboardEntry>> {
+        return try {
+            val usersRef = firestore
+                .collection("users")
+                .orderBy("totalScore", Query.Direction.DESCENDING)
+                .limit(100)
+
+            val snapshot = usersRef.get().await()
+            val entries = snapshot.documents.mapNotNull { it.toLeaderboardEntry() }
+            
+            RankingResult.Success(entries)
+        } catch (e: Exception) {
+            RankingResult.Error(mapFirestoreError(e))
+        }
+    }
+
     override suspend fun calculateUserPosition(
         uid: String,
         schoolCode: String?

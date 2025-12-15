@@ -161,22 +161,31 @@ class ProfileRepositoryImpl @Inject constructor(
     
     override suspend fun getUserStats(uid: String): UserStats? {
         return try {
-            val userDoc = firestore.collection("users").document(uid).get().await()
+            // IMPORTANTE: Leer desde Room, no desde Firestore
+            // Las métricas se calculan y guardan en Room primero, luego se sincronizan a Firestore
+            val profile = profileDao.observeProfile(uid).firstOrNull()
             
-            if (!userDoc.exists()) {
-                android.util.Log.d("ProfileRepository", "User document not found in Firestore for $uid")
+            if (profile == null) {
+                android.util.Log.d("ProfileRepository", "Profile not found in Room for $uid")
                 return null
             }
             
+            android.util.Log.d("ProfileRepository", "Reading user stats from Room for $uid:")
+            android.util.Log.d("ProfileRepository", "   - totalAttempts: ${profile.totalAttempts}")
+            android.util.Log.d("ProfileRepository", "   - totalCorrectAnswers: ${profile.totalCorrectAnswers}")
+            android.util.Log.d("ProfileRepository", "   - totalQuestions: ${profile.totalQuestions}")
+            android.util.Log.d("ProfileRepository", "   - averageAccuracy: ${profile.averageAccuracy}")
+            android.util.Log.d("ProfileRepository", "   - xp: ${profile.xp}")
+            
             UserStats(
-                totalXp = userDoc.getLong("totalXp") ?: 0L,
-                totalScore = (userDoc.getLong("totalScore") ?: 0L).toInt(),
-                totalAttempts = (userDoc.getLong("totalAttempts") ?: 0L).toInt(),
-                totalCorrectAnswers = (userDoc.getLong("totalCorrectAnswers") ?: 0L).toInt(),
-                totalQuestions = (userDoc.getLong("totalQuestions") ?: 0L).toInt()
+                totalXp = profile.xp,
+                totalScore = profile.xp.toInt(), // totalScore es un alias de xp
+                totalAttempts = profile.totalAttempts,
+                totalCorrectAnswers = profile.totalCorrectAnswers,
+                totalQuestions = profile.totalQuestions
             )
         } catch (e: Exception) {
-            android.util.Log.e("ProfileRepository", "Error getting user stats from Firestore", e)
+            android.util.Log.e("ProfileRepository", "Error getting user stats from Room", e)
             null
         }
     }

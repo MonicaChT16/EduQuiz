@@ -113,6 +113,10 @@ fun UserProfile.toEntity() = UserProfileEntity(
     updatedAtLocal = updatedAtLocal,
     syncState = syncState,
     notificationsEnabled = notificationsEnabled,
+    totalAttempts = 0, // Se calcula desde examAttempts, no se almacena en dominio
+    totalCorrectAnswers = 0,
+    totalQuestions = 0,
+    averageAccuracy = 0f,
 )
 
 fun InventoryEntity.toDomain() = InventoryItem(
