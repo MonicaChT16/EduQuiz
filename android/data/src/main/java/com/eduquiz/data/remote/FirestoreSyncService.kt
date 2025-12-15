@@ -338,7 +338,7 @@ class FirestoreSyncService @Inject constructor(
                 
                 // IMPORTANTE: Usar las métricas de Room en lugar de calcularlas
                 // Las métricas ya fueron calculadas y guardadas en Room antes de llamar a syncUserProfile
-                val stats = RankingStats(
+                var stats = RankingStats(
                     accuracy = profile.averageAccuracy,
                     totalAttempts = profile.totalAttempts,
                     totalCorrectAnswers = profile.totalCorrectAnswers,
@@ -349,6 +349,35 @@ class FirestoreSyncService @Inject constructor(
                 android.util.Log.d("FirestoreSyncService", "   - totalCorrectAnswers: ${stats.totalCorrectAnswers}")
                 android.util.Log.d("FirestoreSyncService", "   - totalQuestions: ${stats.totalQuestions}")
                 android.util.Log.d("FirestoreSyncService", "   - averageAccuracy: ${stats.accuracy}%")
+                
+                // PROTECCIÓN: No sobrescribir valores válidos en Firestore con 0 de Room
+                // Si Firestore tiene valores válidos (no 0) y Room tiene 0, mantener los valores de Firestore
+                if (remoteSnapshot.exists()) {
+                    val remoteTotalAttempts = remoteSnapshot.getLong("totalAttempts") ?: 0L
+                    val remoteTotalCorrect = remoteSnapshot.getLong("totalCorrectAnswers") ?: 0L
+                    val remoteTotalQuestions = remoteSnapshot.getLong("totalQuestions") ?: 0L
+                    val remoteAccuracy = remoteSnapshot.getDouble("averageAccuracy") ?: 0.0
+                    
+                    // Si Room tiene 0 pero Firestore tiene valores válidos, usar los de Firestore
+                    if (stats.totalAttempts == 0 && remoteTotalAttempts > 0) {
+                        android.util.Log.w("FirestoreSyncService", "⚠️ WARNING: Room has 0 attempts but Firestore has $remoteTotalAttempts")
+                        android.util.Log.w("FirestoreSyncService", "   Using Firestore values to avoid overwriting valid data with 0")
+                        android.util.Log.w("FirestoreSyncService", "   This might indicate Room metrics were not saved correctly")
+                        
+                        // Usar los valores de Firestore en lugar de los de Room
+                        stats = RankingStats(
+                            accuracy = remoteAccuracy.toFloat(),
+                            totalAttempts = remoteTotalAttempts.toInt(),
+                            totalCorrectAnswers = remoteTotalCorrect.toInt(),
+                            totalQuestions = remoteTotalQuestions.toInt()
+                        )
+                        android.util.Log.d("FirestoreSyncService", "📊 Using metrics from Firestore instead of Room:")
+                        android.util.Log.d("FirestoreSyncService", "   - totalAttempts: ${stats.totalAttempts}")
+                        android.util.Log.d("FirestoreSyncService", "   - totalCorrectAnswers: ${stats.totalCorrectAnswers}")
+                        android.util.Log.d("FirestoreSyncService", "   - totalQuestions: ${stats.totalQuestions}")
+                        android.util.Log.d("FirestoreSyncService", "   - averageAccuracy: ${stats.accuracy}%")
+                    }
+                }
                 
                 // Obtener email: primero del documento remoto si existe, luego del usuario actual si coincide
                 val userEmail = if (remoteSnapshot.exists()) {

@@ -341,20 +341,28 @@ class SyncRepositoryImpl @Inject constructor(
             kotlinx.coroutines.delay(1500) // Aumentado a 1500ms para dar más tiempo a las respuestas
             
             // Re-verificar los intentos después del delay
+            // IMPORTANTE: Obtener TODOS los intentos completados, no solo los pendientes
+            // Esto asegura que se incluyan todos los intentos, incluso los que ya están sincronizados
             val attemptsAfterDelay = examDao.getAttempts(uid)
-            Log.d("SyncRepository", "📊 Attempts after delay: ${attemptsAfterDelay.size} total")
+            Log.d("SyncRepository", "📊 All attempts for user after delay: ${attemptsAfterDelay.size} total")
+            
             val completedAfterDelay = attemptsAfterDelay.filter { 
                 it.status == ExamStatus.COMPLETED || it.status == ExamStatus.AUTO_SUBMIT 
             }
-            Log.d("SyncRepository", "📊 Completed attempts after delay: ${completedAfterDelay.size}")
-            
-            // Verificar que las respuestas estén disponibles para cada intento
+            Log.d("SyncRepository", "📊 All completed attempts (including synced): ${completedAfterDelay.size}")
+
+            // Log detallado de todos los intentos completados
             completedAfterDelay.forEach { attempt ->
                 val answers = examDao.getAnswers(attempt.attemptId)
-                Log.d("SyncRepository", "   Attempt ${attempt.attemptId}: ${answers.size} answers available (scoreRaw=${attempt.scoreRaw})")
+                Log.d("SyncRepository", "   ✅ Completed attempt ${attempt.attemptId}: ${answers.size} answers, scoreRaw=${attempt.scoreRaw}, syncState=${attempt.syncState}, finishedAt=${attempt.finishedAtLocal}")
                 if (answers.isEmpty() && attempt.scoreRaw > 0) {
                     Log.w("SyncRepository", "   ⚠️ WARNING: Attempt ${attempt.attemptId} has scoreRaw=${attempt.scoreRaw} but NO answers yet")
                 }
+            }
+            
+            if (completedAfterDelay.isEmpty()) {
+                Log.w("SyncRepository", "⚠️ WARNING: No completed attempts found for user $uid")
+                Log.w("SyncRepository", "   This means metrics will be 0")
             }
             
             // Obtener el perfil actual usando getAllProfiles para evitar problemas con Flow
@@ -463,10 +471,17 @@ class SyncRepositoryImpl @Inject constructor(
             
             Log.d("SyncRepository", "📊 Calculated metrics from Room: attempts=$totalAttempts, correct=$totalCorrect, questions=$totalQuestions, accuracy=$averageAccuracy%")
             
+            // Verificar que las métricas sean correctas
+            if (totalAttempts == 0 && completedAfterDelay.isNotEmpty()) {
+                Log.e("SyncRepository", "❌ ERROR: Found ${completedAfterDelay.size} completed attempts but calculated 0 totalAttempts!")
+                Log.e("SyncRepository", "   This indicates a calculation error")
+            }
+            
             // PASO 2: Guardar métricas en Room PRIMERO
-            // IMPORTANTE: Actualizar SIEMPRE, incluso si son 0, para mantener consistencia
+            // IMPORTANTE: Actualizar SIEMPRE con los valores calculados desde TODOS los intentos completados
             val metricsUpdatedAt = System.currentTimeMillis()
             Log.d("SyncRepository", "📊 STEP 2: Saving metrics to Room: attempts=$totalAttempts, correct=$totalCorrect, questions=$totalQuestions, accuracy=$averageAccuracy%")
+            Log.d("SyncRepository", "   These metrics are calculated from ${completedAfterDelay.size} completed attempts")
             
             if (totalAttempts == 0 && totalQuestions == 0) {
                 Log.w("SyncRepository", "⚠️ WARNING: All metrics are 0 - this might indicate:")
@@ -478,6 +493,15 @@ class SyncRepositoryImpl @Inject constructor(
             
             try {
                 // Primero actualizar las métricas
+                Log.d("SyncRepository", "📝 Calling updateRankingMetrics with:")
+                Log.d("SyncRepository", "   - uid: $uid")
+                Log.d("SyncRepository", "   - totalAttempts: $totalAttempts")
+                Log.d("SyncRepository", "   - totalCorrectAnswers: $totalCorrect")
+                Log.d("SyncRepository", "   - totalQuestions: $totalQuestions")
+                Log.d("SyncRepository", "   - averageAccuracy: $averageAccuracy")
+                Log.d("SyncRepository", "   - updatedAtLocal: $metricsUpdatedAt")
+                Log.d("SyncRepository", "   - syncState: PENDING")
+                
                 profileDao.updateRankingMetrics(
                     uid = uid,
                     totalAttempts = totalAttempts,
@@ -487,36 +511,52 @@ class SyncRepositoryImpl @Inject constructor(
                     updatedAtLocal = metricsUpdatedAt,
                     syncState = SyncState.PENDING // Marcar como PENDING para forzar sincronización
                 )
-                Log.d("SyncRepository", "✅ updateRankingMetrics() called successfully")
+                Log.d("SyncRepository", "✅ updateRankingMetrics() called successfully - waiting for DB commit...")
+                
+                // Esperar un poco más para asegurar que la escritura se complete
+                kotlinx.coroutines.delay(300)
                 
                 // Verificar que se guardó correctamente - hacer múltiples intentos
                 var verificationAttempts = 0
                 var updatedProfile: com.eduquiz.data.db.UserProfileEntity? = null
-                while (verificationAttempts < 5 && updatedProfile == null) {
+                var metricsMatch = false
+                
+                while (verificationAttempts < 10 && !metricsMatch) {
                     kotlinx.coroutines.delay(100)
                     updatedProfile = profileDao.getAllProfiles().find { it.uid == uid }
                     verificationAttempts++
+                    
+                    if (updatedProfile != null) {
+                        metricsMatch = updatedProfile.totalAttempts == totalAttempts && 
+                                     updatedProfile.totalCorrectAnswers == totalCorrect &&
+                                     updatedProfile.totalQuestions == totalQuestions &&
+                                     Math.abs(updatedProfile.averageAccuracy - averageAccuracy) <= 0.01f
+                        
+                        if (metricsMatch) {
+                            Log.d("SyncRepository", "✅ Metrics saved in Room - Verified (after $verificationAttempts attempts):")
+                            Log.d("SyncRepository", "   - totalAttempts: ${updatedProfile.totalAttempts} (expected: $totalAttempts) ✅")
+                            Log.d("SyncRepository", "   - totalCorrectAnswers: ${updatedProfile.totalCorrectAnswers} (expected: $totalCorrect) ✅")
+                            Log.d("SyncRepository", "   - totalQuestions: ${updatedProfile.totalQuestions} (expected: $totalQuestions) ✅")
+                            Log.d("SyncRepository", "   - averageAccuracy: ${updatedProfile.averageAccuracy} (expected: $averageAccuracy) ✅")
+                            Log.d("SyncRepository", "✅✅✅ All metrics saved correctly in Room and verified!")
+                        } else if (verificationAttempts < 10) {
+                            Log.w("SyncRepository", "   ⏳ Attempt $verificationAttempts: Metrics not yet matching, retrying...")
+                            Log.w("SyncRepository", "      Current: attempts=${updatedProfile.totalAttempts}, correct=${updatedProfile.totalCorrectAnswers}, questions=${updatedProfile.totalQuestions}")
+                            Log.w("SyncRepository", "      Expected: attempts=$totalAttempts, correct=$totalCorrect, questions=$totalQuestions")
+                        }
+                    }
                 }
                 
-                if (updatedProfile != null) {
-                    Log.d("SyncRepository", "✅ Metrics saved in Room - Verified (after $verificationAttempts attempts):")
-                    Log.d("SyncRepository", "   - totalAttempts: ${updatedProfile.totalAttempts} (expected: $totalAttempts)")
-                    Log.d("SyncRepository", "   - totalCorrectAnswers: ${updatedProfile.totalCorrectAnswers} (expected: $totalCorrect)")
-                    Log.d("SyncRepository", "   - totalQuestions: ${updatedProfile.totalQuestions} (expected: $totalQuestions)")
-                    Log.d("SyncRepository", "   - averageAccuracy: ${updatedProfile.averageAccuracy} (expected: $averageAccuracy)")
-                    
-                    if (updatedProfile.totalAttempts != totalAttempts || 
-                        updatedProfile.totalCorrectAnswers != totalCorrect ||
-                        updatedProfile.totalQuestions != totalQuestions ||
-                        Math.abs(updatedProfile.averageAccuracy - averageAccuracy) > 0.01f) {
-                        Log.e("SyncRepository", "❌ ERROR: Metrics in Room don't match expected values!")
+                if (!metricsMatch) {
+                    if (updatedProfile != null) {
+                        Log.e("SyncRepository", "❌ ERROR: Metrics in Room don't match expected values after $verificationAttempts attempts!")
+                        Log.e("SyncRepository", "   Current in Room: attempts=${updatedProfile.totalAttempts}, correct=${updatedProfile.totalCorrectAnswers}, questions=${updatedProfile.totalQuestions}, accuracy=${updatedProfile.averageAccuracy}")
+                        Log.e("SyncRepository", "   Expected: attempts=$totalAttempts, correct=$totalCorrect, questions=$totalQuestions, accuracy=$averageAccuracy")
                         Log.e("SyncRepository", "   This might indicate the migration didn't run or there's a database issue")
                     } else {
-                        Log.d("SyncRepository", "✅✅✅ All metrics saved correctly in Room and verified!")
+                        Log.e("SyncRepository", "❌ ERROR: Could not find profile after updating metrics after $verificationAttempts attempts!")
+                        Log.e("SyncRepository", "   This might indicate a database issue or the profile was deleted")
                     }
-                } else {
-                    Log.e("SyncRepository", "❌ ERROR: Could not find profile after updating metrics after $verificationAttempts attempts!")
-                    Log.e("SyncRepository", "   This might indicate a database issue or the profile was deleted")
                 }
             } catch (e: Exception) {
                 Log.e("SyncRepository", "❌ ERROR updating ranking metrics in Room", e)
@@ -540,9 +580,33 @@ class SyncRepositoryImpl @Inject constructor(
             
             // PASO 3: Sincronizar a Firestore usando las métricas de Room
             // Leer el perfil actualizado de Room para pasar las métricas correctas
-            val profileWithMetrics = profileDao.getAllProfiles().find { it.uid == uid } ?: finalProfile
+            // Esperar un poco más y hacer múltiples intentos para asegurar que las métricas estén guardadas
+            kotlinx.coroutines.delay(200) // Dar tiempo adicional para que la escritura se complete
+            var profileWithMetrics: com.eduquiz.data.db.UserProfileEntity? = null
+            var readAttempts = 0
+            while (profileWithMetrics == null && readAttempts < 5) {
+                profileWithMetrics = profileDao.getAllProfiles().find { it.uid == uid }
+                if (profileWithMetrics == null) {
+                    kotlinx.coroutines.delay(100)
+                    readAttempts++
+                }
+            }
+            
+            // Si no se encontró, usar el perfil final como fallback
+            profileWithMetrics = profileWithMetrics ?: finalProfile
+            
             Log.d("SyncRepository", "📊 STEP 3: Syncing to Firestore using metrics from Room")
             Log.d("SyncRepository", "   Room metrics: attempts=${profileWithMetrics.totalAttempts}, correct=${profileWithMetrics.totalCorrectAnswers}, questions=${profileWithMetrics.totalQuestions}, accuracy=${profileWithMetrics.averageAccuracy}")
+            
+            // ADVERTENCIA CRÍTICA: Si las métricas son 0 pero deberían tener valores, NO sincronizar
+            if (profileWithMetrics.totalAttempts == 0 && totalAttempts > 0) {
+                Log.e("SyncRepository", "❌❌❌ CRITICAL ERROR: Metrics in Room are 0 but we calculated $totalAttempts attempts!")
+                Log.e("SyncRepository", "   This means updateRankingMetrics() did NOT save correctly")
+                Log.e("SyncRepository", "   NOT syncing to Firestore to avoid overwriting valid values with 0")
+                Log.e("SyncRepository", "   Expected: attempts=$totalAttempts, correct=$totalCorrect, questions=$totalQuestions")
+                Log.e("SyncRepository", "   Actual in Room: attempts=${profileWithMetrics.totalAttempts}, correct=${profileWithMetrics.totalCorrectAnswers}, questions=${profileWithMetrics.totalQuestions}")
+                return false // NO sincronizar si las métricas no se guardaron correctamente
+            }
             
             val success = syncService.syncUserProfile(profileWithMetrics, null, null) // Pasar null para que use las métricas de Room
             
