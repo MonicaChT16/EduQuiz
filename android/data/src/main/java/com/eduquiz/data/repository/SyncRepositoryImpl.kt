@@ -387,22 +387,20 @@ class SyncRepositoryImpl @Inject constructor(
                 System.currentTimeMillis()
             }
             
-            // Crear una copia del perfil con el timestamp actualizado y estado PENDING
-            // IMPORTANTE: Preservar los valores de xp y coins que ya fueron actualizados por addCoins/addXp
-            val updatedProfile = profileEntity.copy(
-                updatedAtLocal = updatedAtLocal,
-                syncState = SyncState.PENDING
-            )
-            profileDao.upsertProfile(updatedProfile)
+            // IMPORTANTE: NO usar upsertProfile aquí porque sobrescribe las métricas de ranking
+            // Solo actualizar el syncState - el timestamp se actualizará cuando se guarden las métricas
+            // Las métricas se actualizarán después con updateRankingMetrics que preserva todos los demás campos
+            profileDao.updateProfileSyncState(uid, SyncState.PENDING)
             
-            Log.d("SyncRepository", "✅ Updated profile in DB with new timestamp: $updatedAtLocal, syncState: PENDING")
-            Log.d("SyncRepository", "   Profile values - xp: ${updatedProfile.xp}, coins: ${updatedProfile.coins}")
+            Log.d("SyncRepository", "✅ Updated profile syncState to PENDING (preserving existing metrics)")
+            Log.d("SyncRepository", "   Current profile - xp: ${profileEntity.xp}, coins: ${profileEntity.coins}")
+            Log.d("SyncRepository", "   Current metrics - attempts: ${profileEntity.totalAttempts}, correct: ${profileEntity.totalCorrectAnswers}, questions: ${profileEntity.totalQuestions}")
             
             // Pequeña espera para asegurar que la base de datos se actualizó
             kotlinx.coroutines.delay(300)
             
             // Re-verificar el perfil después del delay para asegurarnos de tener los datos más recientes
-            val finalProfile = profileDao.getAllProfiles().find { it.uid == uid } ?: updatedProfile
+            val finalProfile = profileDao.getAllProfiles().find { it.uid == uid } ?: profileEntity
             Log.d("SyncRepository", "📋 Final profile to sync - syncState: ${finalProfile.syncState}, xp: ${finalProfile.xp}, coins: ${finalProfile.coins}, updatedAtLocal: ${finalProfile.updatedAtLocal}")
             
             // Verificar que el perfil tiene valores válidos
@@ -471,10 +469,27 @@ class SyncRepositoryImpl @Inject constructor(
             
             Log.d("SyncRepository", "📊 Calculated metrics from Room: attempts=$totalAttempts, correct=$totalCorrect, questions=$totalQuestions, accuracy=$averageAccuracy%")
             
+            // Log detallado de cada intento para debugging
+            Log.d("SyncRepository", "📊 Detailed breakdown of ${completedAfterDelay.size} completed attempts:")
+            completedAfterDelay.forEachIndexed { index, attempt ->
+                val answers = examDao.getAnswers(attempt.attemptId)
+                val correct = answers.count { it.isCorrect }
+                Log.d("SyncRepository", "   ${index + 1}. ${attempt.attemptId}: ${answers.size} answers, $correct correct, scoreRaw=${attempt.scoreRaw}")
+            }
+            
             // Verificar que las métricas sean correctas
             if (totalAttempts == 0 && completedAfterDelay.isNotEmpty()) {
                 Log.e("SyncRepository", "❌ ERROR: Found ${completedAfterDelay.size} completed attempts but calculated 0 totalAttempts!")
                 Log.e("SyncRepository", "   This indicates a calculation error")
+            }
+            
+            // Verificar que las métricas estén aumentando (no solo sobrescribiéndose)
+            val currentMetrics = finalProfile
+            if (currentMetrics.totalAttempts > 0 && totalAttempts < currentMetrics.totalAttempts) {
+                Log.e("SyncRepository", "❌ ERROR: Calculated metrics ($totalAttempts attempts) are LESS than current metrics (${currentMetrics.totalAttempts} attempts)!")
+                Log.e("SyncRepository", "   This means we're missing some attempts in the calculation")
+                Log.e("SyncRepository", "   Current: attempts=${currentMetrics.totalAttempts}, correct=${currentMetrics.totalCorrectAnswers}, questions=${currentMetrics.totalQuestions}")
+                Log.e("SyncRepository", "   Calculated: attempts=$totalAttempts, correct=$totalCorrect, questions=$totalQuestions")
             }
             
             // PASO 2: Guardar métricas en Room PRIMERO

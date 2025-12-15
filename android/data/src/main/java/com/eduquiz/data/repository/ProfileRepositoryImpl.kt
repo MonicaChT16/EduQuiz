@@ -29,7 +29,17 @@ class ProfileRepositoryImpl @Inject constructor(
         profileDao.observeProfile(uid).map { it?.toDomain() }
 
     override suspend fun upsertProfile(profile: UserProfile) {
-        profileDao.upsertProfile(profile.toEntity())
+        // IMPORTANTE: Preservar las métricas de ranking existentes cuando se hace upsert
+        // Las métricas se calculan y actualizan con updateRankingMetrics, no con upsertProfile
+        val existingProfile = profileDao.observeProfile(profile.uid).firstOrNull()
+        val profileEntity = profile.toEntity().copy(
+            // Preservar métricas existentes si el perfil ya existe
+            totalAttempts = existingProfile?.totalAttempts ?: 0,
+            totalCorrectAnswers = existingProfile?.totalCorrectAnswers ?: 0,
+            totalQuestions = existingProfile?.totalQuestions ?: 0,
+            averageAccuracy = existingProfile?.averageAccuracy ?: 0f
+        )
+        profileDao.upsertProfile(profileEntity)
     }
 
     override suspend fun updateCoins(uid: String, delta: Int, updatedAtLocal: Long, syncState: String) {
@@ -115,9 +125,58 @@ class ProfileRepositoryImpl @Inject constructor(
                 notificationsEnabled = snapshot.getBoolean("notificationsEnabled") ?: true
             )
             
-            // Guardar en Room
-            profileDao.upsertProfile(profile.toEntity())
+            // IMPORTANTE: Preservar las métricas de ranking existentes en Room
+            // Si el perfil ya existe en Room, mantener sus métricas (que fueron calculadas localmente)
+            // Si no existe, usar las métricas de Firestore si están disponibles
+            val existingProfile = profileDao.observeProfile(uid).firstOrNull()
+            val existingMetrics = existingProfile?.let {
+                android.util.Log.d("ProfileRepository", "Preserving existing ranking metrics from Room for $uid")
+                android.util.Log.d("ProfileRepository", "  - totalAttempts: ${it.totalAttempts}")
+                android.util.Log.d("ProfileRepository", "  - totalCorrectAnswers: ${it.totalCorrectAnswers}")
+                android.util.Log.d("ProfileRepository", "  - totalQuestions: ${it.totalQuestions}")
+                android.util.Log.d("ProfileRepository", "  - averageAccuracy: ${it.averageAccuracy}")
+                it
+            }
+            
+            // Leer métricas de Firestore si existen
+            val firestoreTotalAttempts = snapshot.getLong("totalAttempts")?.toInt() ?: 0
+            val firestoreTotalCorrect = snapshot.getLong("totalCorrectAnswers")?.toInt() ?: 0
+            val firestoreTotalQuestions = snapshot.getLong("totalQuestions")?.toInt() ?: 0
+            val firestoreAccuracy = snapshot.getDouble("averageAccuracy")?.toFloat() ?: 0f
+            
+            // Usar métricas de Room si existen y son válidas (no 0), de lo contrario usar las de Firestore
+            val finalMetrics = if (existingMetrics != null && existingMetrics.totalAttempts > 0) {
+                android.util.Log.d("ProfileRepository", "Using existing Room metrics (they are not 0)")
+                existingMetrics
+            } else if (firestoreTotalAttempts > 0) {
+                android.util.Log.d("ProfileRepository", "Using Firestore metrics (Room metrics are 0 or don't exist)")
+                // Crear una entidad temporal solo para las métricas
+                existingMetrics?.copy(
+                    totalAttempts = firestoreTotalAttempts,
+                    totalCorrectAnswers = firestoreTotalCorrect,
+                    totalQuestions = firestoreTotalQuestions,
+                    averageAccuracy = firestoreAccuracy
+                ) ?: profile.toEntity().copy(
+                    totalAttempts = firestoreTotalAttempts,
+                    totalCorrectAnswers = firestoreTotalCorrect,
+                    totalQuestions = firestoreTotalQuestions,
+                    averageAccuracy = firestoreAccuracy
+                )
+            } else {
+                android.util.Log.d("ProfileRepository", "No valid metrics found, using defaults (0)")
+                existingMetrics ?: profile.toEntity()
+            }
+            
+            // Guardar en Room preservando las métricas
+            val profileEntity = profile.toEntity().copy(
+                totalAttempts = finalMetrics.totalAttempts,
+                totalCorrectAnswers = finalMetrics.totalCorrectAnswers,
+                totalQuestions = finalMetrics.totalQuestions,
+                averageAccuracy = finalMetrics.averageAccuracy
+            )
+            profileDao.upsertProfile(profileEntity)
             android.util.Log.d("ProfileRepository", "Profile fetched from Firestore and saved locally: $uid")
+            android.util.Log.d("ProfileRepository", "  Final metrics saved: attempts=${profileEntity.totalAttempts}, correct=${profileEntity.totalCorrectAnswers}, questions=${profileEntity.totalQuestions}")
             
             profile
         } catch (e: Exception) {
