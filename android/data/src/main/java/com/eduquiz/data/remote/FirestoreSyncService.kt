@@ -398,6 +398,8 @@ class FirestoreSyncService @Inject constructor(
                 // schoolCode: usar ugelCode como código de colegio/UGEL (ingresado manualmente por el usuario)
                 // Si ugelCode está vacío o null, schoolCode también estará vacío
                 val schoolCode = profile.ugelCode?.takeIf { it.isNotBlank() } ?: ""
+                android.util.Log.d("FirestoreSyncService", "📝 Syncing schoolCode=$schoolCode (from ugelCode=${profile.ugelCode}) for user ${profile.uid}")
+                android.util.Log.d("FirestoreSyncService", "📊 User XP: ${profile.xp}, will be saved as totalScore=${profile.xp.toLong()}")
                 
                 val profileData = mapOf(
                     // Datos básicos del usuario
@@ -444,6 +446,8 @@ class FirestoreSyncService @Inject constructor(
                     // Verificar que se escribió correctamente
                     val verifySnapshot = profileRef.get().await()
                     if (verifySnapshot.exists()) {
+                        val writtenSchoolCode = verifySnapshot.getString("schoolCode") ?: "MISSING"
+                        val writtenTotalScore = verifySnapshot.getLong("totalScore") ?: 0L
                         val writtenTotalXp = verifySnapshot.getLong("totalXp") ?: 0L
                         val writtenAttempts = verifySnapshot.getLong("totalAttempts") ?: 0L
                         val writtenAccuracy = verifySnapshot.getDouble("averageAccuracy") ?: 0.0
@@ -451,11 +455,28 @@ class FirestoreSyncService @Inject constructor(
                         val writtenQuestions = verifySnapshot.getLong("totalQuestions") ?: 0L
                         
                         android.util.Log.d("FirestoreSyncService", "✅ Verified write:")
+                        android.util.Log.d("FirestoreSyncService", "   ⭐ schoolCode: $writtenSchoolCode (expected: $schoolCode)")
+                        android.util.Log.d("FirestoreSyncService", "   ⭐ totalScore: $writtenTotalScore (expected: ${profileData["totalScore"]})")
                         android.util.Log.d("FirestoreSyncService", "   - totalXp: $writtenTotalXp (expected: ${profileData["totalXp"]})")
                         android.util.Log.d("FirestoreSyncService", "   - totalAttempts: $writtenAttempts (expected: ${profileData["totalAttempts"]})")
                         android.util.Log.d("FirestoreSyncService", "   - averageAccuracy: $writtenAccuracy (expected: ${profileData["averageAccuracy"]})")
                         android.util.Log.d("FirestoreSyncService", "   - totalCorrectAnswers: $writtenCorrect (expected: ${profileData["totalCorrectAnswers"]})")
                         android.util.Log.d("FirestoreSyncService", "   - totalQuestions: $writtenQuestions (expected: ${profileData["totalQuestions"]})")
+                        
+                        // Verificar que schoolCode y totalScore estén correctos para el ranking
+                        if (writtenSchoolCode != schoolCode) {
+                            android.util.Log.e("FirestoreSyncService", "❌ ERROR: schoolCode mismatch! written=$writtenSchoolCode, expected=$schoolCode")
+                            android.util.Log.e("FirestoreSyncService", "   User will NOT appear in ranking with schoolCode=$schoolCode")
+                        } else {
+                            android.util.Log.d("FirestoreSyncService", "✅ schoolCode matches - user should appear in ranking")
+                        }
+                        
+                        if (writtenTotalScore == 0L && profile.xp > 0L) {
+                            android.util.Log.e("FirestoreSyncService", "❌ ERROR: totalScore is 0 but user has XP=${profile.xp}")
+                            android.util.Log.e("FirestoreSyncService", "   User will NOT appear in ranking (sorted by totalScore DESC)")
+                        } else if (writtenTotalScore > 0L) {
+                            android.util.Log.d("FirestoreSyncService", "✅ totalScore > 0 - user should appear in ranking")
+                        }
                         
                         // Verificar si hay discrepancias (comparar correctamente los tipos)
                         val expectedTotalXp = (profileData["totalXp"] as? Long ?: 0L)

@@ -329,11 +329,16 @@ private fun SchoolCodeSearch(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 placeholder = { Text("Ej: 1234567") },
-                enabled = !isUserCode,
+                enabled = true, // SIEMPRE habilitado para permitir cambiar el código
                 supportingText = {
                     when {
+                        isUserCode && schoolCode.isNotBlank() && inputText.trim() != schoolCode -> Text(
+                            "Cambiarás tu código de $schoolCode a ${inputText.trim()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                         isUserCode && schoolCode.isNotBlank() -> Text(
-                            "Puedes cambiar tu código si ingresas uno nuevo",
+                            "Tu código actual: $schoolCode - Puedes cambiarlo ingresando uno nuevo",
                             style = MaterialTheme.typography.bodySmall
                         )
                         schoolCode.isNotBlank() -> Text(
@@ -357,7 +362,7 @@ private fun SchoolCodeSearch(
                 onClick = { onSearch(inputText.trim()) },
                 enabled = inputText.trim().length == 7 && inputText.trim().all { it.isDigit() }
             ) {
-                Text(if (isUserCode && inputText.trim() == schoolCode) "Cambiar" else "Unirse/Ver")
+                Text(if (isUserCode && inputText.trim() != schoolCode) "Cambiar" else "Buscar")
             }
         }
     }
