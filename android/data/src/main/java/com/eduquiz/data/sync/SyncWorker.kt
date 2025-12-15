@@ -70,7 +70,54 @@ class SyncWorker @AssistedInject constructor(
             var profilesFailed = 0
 
             for (profile in pendingProfiles) {
-                val success = syncService.syncUserProfile(profile)
+                // IMPORTANTE: Recalcular métricas desde Room antes de sincronizar
+                // para asegurar que las métricas estén actualizadas
+                Log.d(TAG, "Recalculating metrics for ${profile.uid} before syncing")
+                val userAttempts = examDao.getAttempts(profile.uid)
+                val completedAttempts = userAttempts.filter { 
+                    it.status == com.eduquiz.domain.exam.ExamStatus.COMPLETED || 
+                    it.status == com.eduquiz.domain.exam.ExamStatus.AUTO_SUBMIT 
+                }
+                
+                var totalAttempts = completedAttempts.size
+                var totalCorrect = 0
+                var totalQuestions = 0
+                
+                completedAttempts.forEach { attempt ->
+                    val answers = examDao.getAnswers(attempt.attemptId)
+                    totalQuestions += answers.size
+                    totalCorrect += answers.count { it.isCorrect }
+                }
+                
+                val averageAccuracy = if (totalQuestions > 0) {
+                    (totalCorrect.toFloat() / totalQuestions.toFloat()) * 100f
+                } else {
+                    0f
+                }
+                
+                Log.d(TAG, "Calculated metrics for ${profile.uid}: attempts=$totalAttempts, correct=$totalCorrect, questions=$totalQuestions, accuracy=$averageAccuracy%")
+                
+                // Actualizar métricas en Room antes de sincronizar
+                try {
+                    profileDao.updateRankingMetrics(
+                        uid = profile.uid,
+                        totalAttempts = totalAttempts,
+                        totalCorrectAnswers = totalCorrect,
+                        totalQuestions = totalQuestions,
+                        averageAccuracy = averageAccuracy,
+                        updatedAtLocal = System.currentTimeMillis(),
+                        syncState = SyncState.PENDING
+                    )
+                    Log.d(TAG, "Updated metrics in Room for ${profile.uid}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error updating metrics in Room for ${profile.uid}", e)
+                }
+                
+                // Leer el perfil actualizado con las métricas
+                kotlinx.coroutines.delay(100)
+                val profileWithMetrics = profileDao.getAllProfiles().find { it.uid == profile.uid } ?: profile
+                
+                val success = syncService.syncUserProfile(profileWithMetrics, null, null)
 
                 if (success) {
                     profileDao.updateProfileSyncState(profile.uid, SyncState.SYNCED)

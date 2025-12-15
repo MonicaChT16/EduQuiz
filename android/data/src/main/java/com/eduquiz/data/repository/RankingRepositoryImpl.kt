@@ -260,6 +260,79 @@ class RankingRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun loadSchoolLeaderboard(schoolCode: String): RankingResult<List<LeaderboardEntry>> {
+        return try {
+            android.util.Log.d("RankingRepository", "🔍 Loading school leaderboard for schoolCode: $schoolCode")
+            
+            // Intentar con orderBy primero (requiere índice compuesto)
+            try {
+                val usersRef = firestore
+                    .collection("users")
+                    .whereEqualTo("schoolCode", schoolCode)
+                    .orderBy("totalScore", Query.Direction.DESCENDING)
+                    .limit(100)
+
+                val snapshot = usersRef.get().await()
+                android.util.Log.d("RankingRepository", "📊 Found ${snapshot.documents.size} users with schoolCode=$schoolCode")
+                
+                // Log de los primeros usuarios encontrados para debugging
+                snapshot.documents.take(5).forEach { doc ->
+                    val uid = doc.id
+                    val displayName = doc.getString("displayName") ?: "Unknown"
+                    val totalScore = doc.getLong("totalScore") ?: doc.getLong("totalXp") ?: 0L
+                    val docSchoolCode = doc.getString("schoolCode") ?: "MISSING"
+                    android.util.Log.d("RankingRepository", "   - $uid ($displayName): score=$totalScore, schoolCode=$docSchoolCode")
+                }
+                
+                val entries = snapshot.documents.mapNotNull { it.toLeaderboardEntry() }
+                android.util.Log.d("RankingRepository", "✅ Returning ${entries.size} leaderboard entries")
+                
+                RankingResult.Success(entries)
+            } catch (e: Exception) {
+                // Si falla por índice faltante, intentar sin orderBy y ordenar en memoria
+                if (e.message?.contains("index") == true || e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION) {
+                    android.util.Log.w("RankingRepository", "⚠️ Index missing, loading without orderBy and sorting in memory")
+                    val usersRef = firestore
+                        .collection("users")
+                        .whereEqualTo("schoolCode", schoolCode)
+                        .limit(500) // Aumentar límite porque ordenaremos en memoria
+
+                    val snapshot = usersRef.get().await()
+                    android.util.Log.d("RankingRepository", "📊 Found ${snapshot.documents.size} users with schoolCode=$schoolCode (without orderBy)")
+                    
+                    val entries = snapshot.documents
+                        .mapNotNull { it.toLeaderboardEntry() }
+                        .sortedByDescending { it.totalScore }
+                        .take(100)
+                    
+                    android.util.Log.d("RankingRepository", "✅ Returning ${entries.size} leaderboard entries (sorted in memory)")
+                    RankingResult.Success(entries)
+                } else {
+                    throw e
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RankingRepository", "❌ Error loading school leaderboard for schoolCode=$schoolCode", e)
+            RankingResult.Error(mapFirestoreError(e))
+        }
+    }
+
+    override suspend fun loadNationalLeaderboard(): RankingResult<List<LeaderboardEntry>> {
+        return try {
+            val usersRef = firestore
+                .collection("users")
+                .orderBy("totalScore", Query.Direction.DESCENDING)
+                .limit(100)
+
+            val snapshot = usersRef.get().await()
+            val entries = snapshot.documents.mapNotNull { it.toLeaderboardEntry() }
+            
+            RankingResult.Success(entries)
+        } catch (e: Exception) {
+            RankingResult.Error(mapFirestoreError(e))
+        }
+    }
+
     override suspend fun calculateUserPosition(
         uid: String,
         schoolCode: String?

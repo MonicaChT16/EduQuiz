@@ -127,52 +127,44 @@ class RankingViewModel @Inject constructor(
     }
     
     private suspend fun updateUserStatsFromProfile(uid: String, profile: UserProfile?) {
-        val currentStats = _state.value.userStats
+        // IMPORTANTE: Usar las métricas del perfil de Room, no calcularlas
+        // Las métricas ya están calculadas y guardadas en Room
         val totalScore = profile?.xp?.toInt() ?: 0
         
-        // Solo actualizar si el XP cambió
-        if (currentStats?.totalScore != totalScore) {
-            updateUserStats(
-                totalScore = totalScore,
-                displayName = profile?.displayName,
-                photoUrl = profile?.photoUrl,
-                selectedCosmeticId = profile?.selectedCosmeticId
-            )
-        } else {
-            // Actualizar solo displayName, photoUrl y selectedCosmeticId si el XP es el mismo
-            _state.update {
-                it.copy(
-                    userDisplayName = profile?.displayName ?: it.userDisplayName,
-                    userPhotoUrl = profile?.photoUrl ?: it.userPhotoUrl,
-                    userSelectedCosmeticId = profile?.selectedCosmeticId
-                )
-            }
-        }
+        // Obtener las métricas desde getUserStats (que ahora lee de Room)
+        val userStats = profileRepository.getUserStats(uid)
+        
+        updateUserStats(
+            totalScore = totalScore,
+            accuracy = userStats?.let { 
+                if (it.totalQuestions > 0) {
+                    (it.totalCorrectAnswers.toFloat() / it.totalQuestions.toFloat()) * 100f
+                } else {
+                    0f
+                }
+            } ?: 0f,
+            examsCompleted = userStats?.totalAttempts ?: 0,
+            displayName = profile?.displayName,
+            photoUrl = profile?.photoUrl,
+            selectedCosmeticId = profile?.selectedCosmeticId
+        )
     }
     
     private suspend fun updateUserStatsFromAttempts(uid: String, attempts: List<ExamAttempt>) {
-        val completedAttempts = attempts.filter { 
-            it.status == ExamStatus.COMPLETED || it.status == ExamStatus.AUTO_SUBMIT 
-        }
-        val examsCompleted = completedAttempts.size
+        // IMPORTANTE: Ya no calcular desde intentos, usar las métricas de Room
+        // Las métricas se calculan y guardan en Room cuando se sincroniza
+        val profile = profileRepository.observeProfile(uid).firstOrNull()
+        val userStats = profileRepository.getUserStats(uid)
         
-        var totalCorrect = 0
-        var totalAnswered = 0
-        
-        completedAttempts.forEach { attempt ->
-            val answers = examRepository.getAnswersForAttempt(attempt.attemptId)
-            totalAnswered += answers.size
-            totalCorrect += answers.count { it.isCorrect }
-        }
-        
-        val accuracy = if (totalAnswered > 0) {
-            (totalCorrect.toFloat() / totalAnswered.toFloat()) * 100f
-        } else {
-            0f
-        }
-        
-        val currentStats = _state.value.userStats
-        val totalScore = currentStats?.totalScore ?: (profileRepository.observeProfile(uid).firstOrNull()?.xp?.toInt() ?: 0)
+        val totalScore = profile?.xp?.toInt() ?: 0
+        val accuracy = userStats?.let { 
+            if (it.totalQuestions > 0) {
+                (it.totalCorrectAnswers.toFloat() / it.totalQuestions.toFloat()) * 100f
+            } else {
+                0f
+            }
+        } ?: 0f
+        val examsCompleted = userStats?.totalAttempts ?: 0
         
         updateUserStats(
             totalScore = totalScore,
@@ -343,14 +335,21 @@ class RankingViewModel @Inject constructor(
                     val currentProfile = profileRepository.observeProfile(currentUid).firstOrNull()
                     if (currentProfile?.ugelCode != trimmedCode) {
                         val now = System.currentTimeMillis()
+                        android.util.Log.d("RankingViewModel", "Updating UGEL code from ${currentProfile?.ugelCode} to $trimmedCode")
                         profileRepository.updateUgelCode(
                             uid = currentUid,
                             ugelCode = trimmedCode,
                             updatedAtLocal = now,
                             syncState = SyncState.PENDING
                         )
-                        syncRepository.enqueueSyncNow()
-                        android.util.Log.d("RankingViewModel", "UGEL code saved: $trimmedCode")
+                        // Sincronizar inmediatamente para que el schoolCode se actualice en Firestore
+                        val syncSuccess = syncRepository.syncUserProfileNow(currentUid)
+                        android.util.Log.d("RankingViewModel", "UGEL code saved: $trimmedCode, sync result: $syncSuccess")
+                        
+                        if (!syncSuccess) {
+                            // Si falla la sincronización inmediata, encolar para más tarde
+                            syncRepository.enqueueSyncNow()
+                        }
                         
                         _state.update { 
                             it.copy(
@@ -499,14 +498,30 @@ class RankingViewModel @Inject constructor(
     }
 
     private fun loadSchoolLeaderboard(schoolCode: String) {
+        android.util.Log.d("RankingViewModel", "🔍 Loading school leaderboard for schoolCode: $schoolCode")
         currentJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
+            
+            // Verificar que el usuario tenga el mismo schoolCode sincronizado
+            val currentUid = _state.value.currentUid
+            if (currentUid != null) {
+                val currentProfile = profileRepository.observeProfile(currentUid).firstOrNull()
+                val userSchoolCode = currentProfile?.ugelCode?.takeIf { it.isNotBlank() } ?: ""
+                android.util.Log.d("RankingViewModel", "📊 User profile - ugelCode: ${currentProfile?.ugelCode}, schoolCode in query: $schoolCode")
+                
+                // Si el usuario tiene un código diferente, forzar sincronización
+                if (userSchoolCode != schoolCode && userSchoolCode.isNotBlank()) {
+                    android.util.Log.w("RankingViewModel", "⚠️ User's ugelCode ($userSchoolCode) doesn't match search code ($schoolCode)")
+                } else if (userSchoolCode == schoolCode && userSchoolCode.isNotBlank()) {
+                    android.util.Log.d("RankingViewModel", "✅ User's code matches search code - should appear in ranking")
+                }
+            }
+            
             try {
-                rankingRepository.observeSchoolLeaderboard(schoolCode)
-                    .collect { result ->
-                        handleRankingResult(result)
-                    }
+                val result = rankingRepository.loadSchoolLeaderboard(schoolCode)
+                handleRankingResult(result)
             } catch (e: Exception) {
+                android.util.Log.e("RankingViewModel", "❌ Exception loading school leaderboard", e)
                 _state.update {
                     it.copy(
                         isLoading = false,
@@ -521,10 +536,8 @@ class RankingViewModel @Inject constructor(
         currentJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             try {
-                rankingRepository.observeNationalLeaderboard()
-                    .collect { result ->
-                        handleRankingResult(result)
-                    }
+                val result = rankingRepository.loadNationalLeaderboard()
+                handleRankingResult(result)
             } catch (e: Exception) {
                 _state.update {
                     it.copy(
@@ -539,9 +552,29 @@ class RankingViewModel @Inject constructor(
     private fun handleRankingResult(result: RankingResult<List<LeaderboardEntry>>) {
         when (result) {
             is RankingResult.Success -> {
+                android.util.Log.d("RankingViewModel", "✅ Loaded ${result.data.size} entries from leaderboard")
+                val currentUid = _state.value.currentUid
+                val userInList = result.data.any { it.uid == currentUid }
+                android.util.Log.d("RankingViewModel", "👤 User ${currentUid} in list: $userInList")
+                if (!userInList && currentUid != null) {
+                    android.util.Log.w("RankingViewModel", "⚠️ User not found in leaderboard - checking if schoolCode is synced")
+                    // Verificar el código del usuario
+                    viewModelScope.launch {
+                        val currentProfile = profileRepository.observeProfile(currentUid).firstOrNull()
+                        val userSchoolCode = currentProfile?.ugelCode?.takeIf { it.isNotBlank() } ?: ""
+                        val searchCode = _state.value.schoolCode
+                        android.util.Log.w("RankingViewModel", "   User ugelCode: $userSchoolCode, searchCode: $searchCode")
+                        if (userSchoolCode == searchCode && userSchoolCode.isNotBlank()) {
+                            android.util.Log.w("RankingViewModel", "   ⚠️ Codes match but user not in list - might need to sync schoolCode to Firestore")
+                            // Forzar sincronización
+                            syncRepository.syncUserProfileNow(currentUid)
+                        }
+                    }
+                }
                 updateStateWithEntries(result.data)
             }
             is RankingResult.Error -> {
+                android.util.Log.e("RankingViewModel", "❌ Error loading leaderboard: ${result.error.message}")
                 _state.update {
                     it.copy(
                         isLoading = false,
