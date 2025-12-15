@@ -113,6 +113,11 @@ data class UserProfileEntity(
     val updatedAtLocal: Long,
     val syncState: String,
     val notificationsEnabled: Boolean = true, // Nuevo campo para controlar las notificaciones
+    // Métricas de ranking (calculadas desde examAttempts)
+    val totalAttempts: Int = 0,
+    val totalCorrectAnswers: Int = 0,
+    val totalQuestions: Int = 0,
+    val averageAccuracy: Float = 0f,
 )
 
 @Entity(
@@ -436,6 +441,28 @@ interface ProfileDao {
         updatedAtLocal: Long,
         syncState: String
     )
+
+    @Query(
+        """
+        UPDATE user_profile_entity 
+        SET totalAttempts = :totalAttempts, 
+            totalCorrectAnswers = :totalCorrectAnswers, 
+            totalQuestions = :totalQuestions, 
+            averageAccuracy = :averageAccuracy,
+            updatedAtLocal = :updatedAtLocal, 
+            syncState = :syncState 
+        WHERE uid = :uid
+        """
+    )
+    suspend fun updateRankingMetrics(
+        uid: String,
+        totalAttempts: Int,
+        totalCorrectAnswers: Int,
+        totalQuestions: Int,
+        averageAccuracy: Float,
+        updatedAtLocal: Long,
+        syncState: String
+    )
 }
 
 @Dao
@@ -538,7 +565,7 @@ interface OnboardingDao {
         ExamAnswerEntity::class,
         OnboardingPreferencesEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -635,6 +662,13 @@ abstract class AppDatabase : RoomDatabase() {
             Migration(6, 7) { database ->
                 // Agregar campo notificationsEnabled a user_profile_entity
                 database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN notificationsEnabled INTEGER NOT NULL DEFAULT 1")
+            },
+            Migration(7, 8) { database ->
+                // Agregar campos de métricas de ranking a user_profile_entity
+                database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN totalAttempts INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN totalCorrectAnswers INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN totalQuestions INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE user_profile_entity ADD COLUMN averageAccuracy REAL NOT NULL DEFAULT 0.0")
             }
         )
     }

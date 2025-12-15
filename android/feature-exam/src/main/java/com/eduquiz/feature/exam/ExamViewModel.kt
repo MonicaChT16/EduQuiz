@@ -720,10 +720,29 @@ class ExamViewModel @Inject constructor(
         finishExam(ExamStatus.AUTO_SUBMIT)
     }
 
+    private var isFinishing = false
+    
     private fun finishExam(status: String) {
-        if (_state.value.stage == ExamStage.Finished) return
-        val currentAttempt = attempt ?: return
-        val uid = userId ?: return
+        // Protección contra múltiples llamadas
+        if (_state.value.stage == ExamStage.Finished) {
+            android.util.Log.d("ExamViewModel", "finishExam: Already finished, ignoring call")
+            return
+        }
+        if (isFinishing) {
+            android.util.Log.w("ExamViewModel", "finishExam: Already finishing, ignoring duplicate call")
+            return
+        }
+        
+        val currentAttempt = attempt ?: run {
+            android.util.Log.w("ExamViewModel", "finishExam: No attempt found, cannot finish")
+            return
+        }
+        val uid = userId ?: run {
+            android.util.Log.w("ExamViewModel", "finishExam: No userId found, cannot finish")
+            return
+        }
+        
+        isFinishing = true
         timerJob?.cancel()
 
         viewModelScope.launch {
@@ -754,7 +773,13 @@ class ExamViewModel @Inject constructor(
                             )
                             android.util.Log.d("ExamViewModel", "finishExam: Saved missing answer for question $questionId")
                         } catch (e: Exception) {
-                            android.util.Log.e("ExamViewModel", "finishExam: Error saving answer for $questionId", e)
+                            // Si es un error de foreign key, probablemente la pregunta no existe en la BD
+                            // o el intento ya fue eliminado - solo loguear y continuar
+                            if (e.message?.contains("FOREIGN KEY") == true || e.message?.contains("constraint") == true) {
+                                android.util.Log.w("ExamViewModel", "finishExam: Foreign key constraint error for question $questionId - question may not exist in DB or attempt was deleted")
+                            } else {
+                                android.util.Log.e("ExamViewModel", "finishExam: Error saving answer for $questionId", e)
+                            }
                         }
                     } else {
                         android.util.Log.d("ExamViewModel", "finishExam: Answer for question $questionId already saved")
@@ -765,16 +790,41 @@ class ExamViewModel @Inject constructor(
                 kotlinx.coroutines.delay(200)
                 
                 // Ahora sí, finalizar el intento (esto recalculará el score desde las respuestas guardadas)
-                android.util.Log.d("ExamViewModel", "finishExam: Calling finishAttempt")
-                examRepository.finishAttempt(
-                    attemptId = currentAttempt.attemptId,
-                    finishedAtLocal = timeProvider.currentTimeMillis(),
-                    status = status
-                )
-                android.util.Log.d("ExamViewModel", "finishExam: finishAttempt completed")
+                android.util.Log.d("ExamViewModel", "finishExam: Calling finishAttempt with status=$status")
+                try {
+                    examRepository.finishAttempt(
+                        attemptId = currentAttempt.attemptId,
+                        finishedAtLocal = timeProvider.currentTimeMillis(),
+                        status = status
+                    )
+                    android.util.Log.d("ExamViewModel", "finishExam: finishAttempt completed")
+                } catch (e: IllegalStateException) {
+                    // Si el intento no existe, puede ser que ya fue finalizado o eliminado
+                    if (e.message?.contains("not found") == true) {
+                        android.util.Log.w("ExamViewModel", "finishExam: Attempt ${currentAttempt.attemptId} not found - may have been already finished or deleted")
+                        // Intentar obtener el intento finalizado desde la BD
+                        val existingAttempt = examRepository.getAttemptById(currentAttempt.attemptId)
+                        if (existingAttempt != null && (existingAttempt.status == ExamStatus.COMPLETED || existingAttempt.status == ExamStatus.AUTO_SUBMIT)) {
+                            android.util.Log.d("ExamViewModel", "finishExam: Attempt already finished with status=${existingAttempt.status}, continuing...")
+                        } else {
+                            android.util.Log.e("ExamViewModel", "finishExam: Attempt not found and not finished - cannot continue")
+                            throw e
+                        }
+                    } else {
+                        throw e
+                    }
+                }
+                
+                // Verificar que el intento se guardó correctamente
+                val verifyAttempt = examRepository.getAttemptById(currentAttempt.attemptId)
+                if (verifyAttempt != null) {
+                    android.util.Log.d("ExamViewModel", "finishExam: Verified attempt saved - status=${verifyAttempt.status}, scoreRaw=${verifyAttempt.scoreRaw}, syncState=${verifyAttempt.syncState}")
+                } else {
+                    android.util.Log.e("ExamViewModel", "finishExam: ERROR - Attempt not found after finishAttempt!")
+                }
                 
                 // Esperar un poco más para que finishAttempt termine de escribir el score actualizado
-                kotlinx.coroutines.delay(300)
+                kotlinx.coroutines.delay(500) // Aumentado a 500ms para asegurar que se guarde
                 
                 // Verificar respuestas una vez más antes de otorgar coins
                 val finalAnswers = examRepository.getAnswersForAttempt(currentAttempt.attemptId)
@@ -787,7 +837,15 @@ class ExamViewModel @Inject constructor(
                 // Calcular y otorgar EduCoins
                 if (status != ExamStatus.CANCELLED_CHEAT) {
                     try {
+                        android.util.Log.d("ExamViewModel", "finishExam: Calculating and awarding coins/XP")
                         calculateAndAwardCoins(uid, currentAttempt.attemptId)
+                        
+                        // Esperar un poco para que las actualizaciones de coins/XP se guarden en la BD
+                        kotlinx.coroutines.delay(300)
+                        
+                        // Verificar que el perfil se actualizó correctamente
+                        val profileAfterCoins = profileRepository.observeProfile(uid).firstOrNull()
+                        android.util.Log.d("ExamViewModel", "finishExam: Profile after coins - xp: ${profileAfterCoins?.xp}, coins: ${profileAfterCoins?.coins}, syncState: ${profileAfterCoins?.syncState}")
                         
                         // Evaluar logros relacionados con completar examen
                         achievementEngine.evaluateAndUnlock(
@@ -799,17 +857,32 @@ class ExamViewModel @Inject constructor(
                     }
                 }
                 
+                // Esperar un poco más para asegurar que todo esté guardado antes de sincronizar
+                kotlinx.coroutines.delay(500)
+                
                 // Sincronizar perfil inmediatamente para actualizar métricas de ranking
                 // Esto recalcula las métricas desde los intentos y las sincroniza a Firestore
                 try {
-                    android.util.Log.d("ExamViewModel", "Syncing user profile immediately after exam finish to update ranking metrics")
+                    android.util.Log.d("ExamViewModel", "finishExam: Syncing user profile immediately after exam finish to update ranking metrics")
+                    
+                    // Verificar el estado del intento antes de sincronizar
+                    val attemptBeforeSync = examRepository.getAttemptById(currentAttempt.attemptId)
+                    android.util.Log.d("ExamViewModel", "finishExam: Attempt before sync - status=${attemptBeforeSync?.status}, scoreRaw=${attemptBeforeSync?.scoreRaw}, syncState=${attemptBeforeSync?.syncState}")
+                    
                     val syncSuccess = syncRepository.syncUserProfileNow(uid)
-                    android.util.Log.d("ExamViewModel", "Profile sync result: $syncSuccess")
+                    android.util.Log.d("ExamViewModel", "finishExam: Profile sync result: $syncSuccess")
+                    
+                    if (!syncSuccess) {
+                        android.util.Log.e("ExamViewModel", "finishExam: ⚠️ WARNING - Profile sync failed! Metrics may not be updated in Firestore")
+                    } else {
+                        android.util.Log.d("ExamViewModel", "finishExam: ✅ Profile sync succeeded - metrics should be updated in Firestore")
+                    }
                     
                     // También encolar sincronización de intentos por si acaso
                     syncRepository.enqueueSyncNow()
                 } catch (e: Exception) {
                     android.util.Log.e("ExamViewModel", "finishExam: Error syncing profile", e)
+                    e.printStackTrace()
                 }
                 
                 // Cargar resultado desde Room - usar las respuestas que ya tenemos verificadas
@@ -860,11 +933,13 @@ class ExamViewModel @Inject constructor(
                         isBusy = false
                     )
                 }
+                isFinishing = false
                 android.util.Log.d("ExamViewModel", "finishExam: State updated to Finished successfully")
                 
             } catch (e: Exception) {
                 android.util.Log.e("ExamViewModel", "finishExam: Fatal error in finishExam", e)
                 e.printStackTrace()
+                isFinishing = false
                 // Asegurar que al menos el estado se actualice para que la UI pueda mostrar algo
                 try {
                     // Intentar crear resultado con lo que tengamos
