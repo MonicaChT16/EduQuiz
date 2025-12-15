@@ -466,8 +466,18 @@ class FirestoreSyncService @Inject constructor(
                 // Si el perfil está PENDING, forzar sincronización de todos modos
                 if (profile.syncState == SyncState.PENDING) {
                     android.util.Log.d("FirestoreSyncService", "⚠️ But profile is PENDING, forcing sync anyway")
-                    // Recalcular y sincronizar de todos modos
-                    val stats = calculateRankingStats(profile.uid)
+                    // Usar las métricas de Room, no calcularlas
+                    val stats = RankingStats(
+                        accuracy = profile.averageAccuracy,
+                        totalAttempts = profile.totalAttempts,
+                        totalCorrectAnswers = profile.totalCorrectAnswers,
+                        totalQuestions = profile.totalQuestions
+                    )
+                    android.util.Log.d("FirestoreSyncService", "📊 Using metrics from Room (PENDING override):")
+                    android.util.Log.d("FirestoreSyncService", "   - totalAttempts: ${stats.totalAttempts}")
+                    android.util.Log.d("FirestoreSyncService", "   - totalCorrectAnswers: ${stats.totalCorrectAnswers}")
+                    android.util.Log.d("FirestoreSyncService", "   - totalQuestions: ${stats.totalQuestions}")
+                    android.util.Log.d("FirestoreSyncService", "   - averageAccuracy: ${stats.accuracy}%")
                     val schoolCode = profile.ugelCode?.takeIf { it.isNotBlank() } ?: ""
                     val userEmail = if (remoteSnapshot.exists()) {
                         remoteSnapshot.getString("email")?.takeIf { it.isNotBlank() }
